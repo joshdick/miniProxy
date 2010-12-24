@@ -33,7 +33,7 @@ function getFile($fileLoc)
   $getData = array();
   foreach ($_GET as $key => $value) {
     if ($key == URL_PARAM) continue; //Strip out any data added by proxifyGETForms()
-    $getData[] = $key . "=" . $value;
+    $getData[] = urlencode($key) . "=" . urlencode($value);
   }
   if (count($getData) > 0) $fileLoc .= "?" . implode("&", $getData);
   curl_setopt($ch, CURLOPT_URL, $fileLoc);
@@ -78,14 +78,16 @@ function proxifyTags(&$doc, $baseURL, $tags, $attrName) {
   }
 }
 
-//Rewrite GET forms so that their actions point back to the proxy, and add a hidden form field with the original form action so that the proxy knows where to GET.
+//Rewrite GET forms so that their actions point back to the proxy.
 function proxifyGETForms(&$doc, $baseURL) {
   foreach($doc->getElementsByTagName("form") as $form) {
     $method = $form->getAttribute("method");
     if (empty($method) || strtolower($method) != "post") { //Only modify GET forms
-      $action = rel2abs($form->getAttribute("action"), $baseURL); //Store an absolute version of the form action
-      $form->setAttribute("action", ""); //Wipe out the form action, forcing the form to submit back to the proxy
-      //Add a hidden form field containing the original form action
+      $action = $form->getAttribute("action");
+      //If the form doesn't have an action, the action is the page itself. Otherwise, change an existing action to an absolute version.
+      $action = empty($action) ? $baseURL : rel2abs($action, $baseURL);
+      $form->setAttribute("action", ""); //Wipe out the form action in the DOM, forcing the form to submit back to the proxy
+      //Add a hidden form field containing the original form action, so the proxy knows where to make the request
       $proxyField = $doc->createElement("input");
       $proxyField->setAttribute("type", "hidden");
       $proxyField->setAttribute("name", URL_PARAM);
@@ -109,17 +111,25 @@ function proxifyCSS($css, $baseURL) {
         if (strpos($url, "\"") === 0) {
           $url = trim($url, "\"");
         }
-        return "url(" . rel2abs($url, $baseURL) . ")";
+        if (stripos($url, "data:") === 0) return "url(" . $url . ")"; //The URL isn't an HTTP URL but is actual binary data. Don't proxify it.
+        return "url(" . PROXY_PREFIX . rel2abs($url, $baseURL) . ")";
     },
     $css);
 }
 
-//Wrapper for proxifyCSS() to handle <style> tags rather than stylesheet files.
-function proxifyStyleTags(&$doc, $baseURL) {
+//Wrapper for proxifyCSS() to handle inline style tags and attributes rather than stylesheet files.
+function proxifyStyle(&$doc, $baseURL) {
+  //Profixy <style> tags
   foreach($doc->getElementsByTagName("style") as $style) {
     if ($style->getAttribute("type") == "text/css") { //If this is a CSS stylesheet...
       $style->nodeValue = proxifyCSS($style->nodeValue, $baseURL);
     }
+  }
+  //Proxify elements with a style attribute
+  $xpath = new DOMXPath($doc);
+  $styled_nodes = $xpath->query('//*[@style]');
+  foreach ($styled_nodes as $node) {
+    $node->setAttribute("style", proxifyCSS($node->getAttribute("style"), $baseURL));
   }
 }
 
@@ -129,16 +139,16 @@ if (!preg_match("@^.*://@", $url)) $url = "http://" . $url; //Assume that any su
 
 $file = getFile($url);
 header("Content-Type: " . $file["contentType"]);
-if (strpos($file["contentType"], "text/html") !== false) { //This is a web page, so proxify the DOM.
+if (stripos($file["contentType"], "text/html") !== false) { //This is a web page, so proxify the DOM.
   $doc = new DomDocument();
   @$doc->loadHTML($file["data"]);
   proxifyGETForms($doc, $url);
-  proxifyStyleTags($doc, $url);
+  proxifyStyle($doc, $url);
   proxifyTags($doc, $url, array("a", "link"), "href");
   proxifyTags($doc, $url, array("img", "script", "iframe", "frame"), "src");
   proxifyTags($doc, $url, array("form"), "action"); //This will only affect POST forms; GET form actions were blanked by proxifyGETForms() above.
   echo "<!-- Proxified page constructed by miniProxy -->\n" . $doc->saveHTML();
-} else if (strpos($file["contentType"], "text/css") !== false) { //This is CSS, so proxify url() references.
+} else if (stripos($file["contentType"], "text/css") !== false) { //This is CSS, so proxify url() references.
   echo proxifyCSS($file["data"], $url);
 } else { //This isn't a web page or CSS, so serve unmodified through the proxy with the correct headers (images, JavaScript, etc.)
   header("Content-Length: " . $file["contentLength"]);
