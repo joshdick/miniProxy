@@ -52,9 +52,9 @@ function getFile($fileLoc)
 //Modified version of code Found at http://nashruddin.com/PHP_Script_for_Converting_Relative_to_Absolute_URL
 function rel2abs($rel, $base)
 {
-  if (parse_url($rel, PHP_URL_SCHEME) != "") return $rel; //Return if already an absolute URL
-  if ($rel[0] == "#" || $rel[0] == "?") return $base.$rel; //Queries and anchors
   extract(parse_url($base)); //Parse base URL and convert to local variables: $scheme, $host, $path
+  if (!empty($scheme)) return $rel; //Return if already an absolute URL
+  if ($rel[0] == "#" || $rel[0] == "?") return $base.$rel; //Queries and anchors
   $path = isset($path) ? preg_replace('#/[^/]*$#', "", $path) : "/"; //Remove non-directory element from path
   if ($rel[0] == '/') $path = ""; //Destroy path if relative url points to root
   $abs = "$host$path/$rel"; //Dirty absolute URL
@@ -134,7 +134,8 @@ function proxifyStyle(&$doc, $baseURL) {
 }
 
 $url = empty($_GET[URL_PARAM]) ? null : $_GET[URL_PARAM];
-if (empty($url)) die("No URL was specified.<br /><br />miniProxy should be invoked like this:<br /><br /><a href=\"" . PROXY_PREFIX . "http://en.wikipedia.org/\">" . PROXY_PREFIX . "http://en.wikipedia.org/");
+if (empty($url)) die("No URL was specified.<br /><br />miniProxy should be invoked like this:<br /><br /><a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/");
+if (strpos($url, "//") === 0) $url = "http:" . $url; //Assume that any supplied URLs starting with // are HTTP URLs.
 if (!preg_match("@^.*://@", $url)) $url = "http://" . $url; //Assume that any supplied URLs without a scheme are HTTP URLs.
 
 $file = getFile($url);
