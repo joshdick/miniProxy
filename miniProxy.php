@@ -52,9 +52,9 @@ function getFile($fileLoc)
 //Modified version of code Found at http://nashruddin.com/PHP_Script_for_Converting_Relative_to_Absolute_URL
 function rel2abs($rel, $base)
 {
-  extract(parse_url($base)); //Parse base URL and convert to local variables: $scheme, $host, $path
-  if (!empty($scheme)) return $rel; //Return if already an absolute URL
+  if (parse_url($rel, PHP_URL_SCHEME) != "" || strpos($rel, "//") === 0) return $rel; //Return if already an absolute URL
   if ($rel[0] == "#" || $rel[0] == "?") return $base.$rel; //Queries and anchors
+  extract(parse_url($base)); //Parse base URL and convert to local variables: $scheme, $host, $path
   $path = isset($path) ? preg_replace('#/[^/]*$#', "", $path) : "/"; //Remove non-directory element from path
   if ($rel[0] == '/') $path = ""; //Destroy path if relative url points to root
   $abs = "$host$path/$rel"; //Dirty absolute URL
