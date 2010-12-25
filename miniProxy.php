@@ -1,6 +1,9 @@
 <?php
-
-//miniProxy - a barebones web proxy written in PHP. <https://github.com/joshdick/miniProxy>
+/*
+miniProxy - A simple PHP web proxy. <https://github.com/joshdick/miniProxy>
+Written and maintained by Joshua Dick <http://joshdick.net>.
+miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html>.
+*/
 
 define("URL_PARAM", "___mp_url");
 define("PROXY_PREFIX", "http://" . $_SERVER['SERVER_NAME'] . ":" . $_SERVER['SERVER_PORT'] . $_SERVER['PHP_SELF'] . "?" . URL_PARAM . "=");
@@ -134,7 +137,7 @@ function proxifyStyle(&$doc, $baseURL) {
 }
 
 $url = empty($_GET[URL_PARAM]) ? null : $_GET[URL_PARAM];
-if (empty($url)) die("No URL was specified.<br /><br />miniProxy should be invoked like this:<br /><br /><a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/");
+if (empty($url)) die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form action=\"\"><input type=\"text\" name=\"" . URL_PARAM . "\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
 if (strpos($url, "//") === 0) $url = "http:" . $url; //Assume that any supplied URLs starting with // are HTTP URLs.
 if (!preg_match("@^.*://@", $url)) $url = "http://" . $url; //Assume that any supplied URLs without a scheme are HTTP URLs.
 
