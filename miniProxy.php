@@ -41,13 +41,12 @@ function getFile($fileLoc)
   if (count($getData) > 0) $fileLoc .= "?" . implode("&", $getData);
   curl_setopt($ch, CURLOPT_URL, $fileLoc);
   $data = curl_exec($ch);
-  $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  if ($httpCode != 200) {
+  $responseInfo = curl_getinfo($ch);
+  if ($responseInfo['http_code'] != 200) {
     $data = "Error: Server at " . $fileLoc . " sent HTTP response code " . $httpCode . ".";
   }
-  $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
   curl_close($ch);
-  return array("data" => $data, "contentType" => $contentType);
+  return array("data" => $data, "contentType" => $responseInfo['content_type']);
 }
 
 //Converts relative URLs to absolute ones, given a base URL.
@@ -115,9 +114,7 @@ if (stripos($file["contentType"], "text/html") !== false) { //This is a web page
   }
   //Profixy <style> tags
   foreach($xpath->query('//style') as $style) {
-    if ($style->getAttribute("type") == "text/css") { //If this is a CSS stylesheet...
-      $style->nodeValue = proxifyCSS($style->nodeValue, $url);
-    }
+    $style->nodeValue = proxifyCSS($style->nodeValue, $url);
   }
   //Proxify tags with a style attribute
   foreach ($xpath->query('//*[@style]') as $element) {
