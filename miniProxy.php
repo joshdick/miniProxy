@@ -35,7 +35,7 @@ function getFile($fileLoc)
   //If data was GETed to the proxy, re-GET the data to the requested URL
   $getData = array();
   foreach ($_GET as $key => $value) {
-    if ($key == URL_PARAM) continue; //Strip out any data added by proxifyGETForms()
+    if ($key == URL_PARAM) continue; //Strip out any data that was added when proxifying GET forms
     $getData[] = urlencode($key) . "=" . urlencode($value);
   }
   if (count($getData) > 0) $fileLoc .= "?" . implode("&", $getData);
@@ -46,15 +46,15 @@ function getFile($fileLoc)
     $data = "Error: Server at " . $fileLoc . " sent HTTP response code " . $httpCode . ".";
   }
   $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-  $contentLength = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
   curl_close($ch);
-  return array("data" => $data, "contentType" => $contentType, "contentLength" => $contentLength);
+  return array("data" => $data, "contentType" => $contentType);
 }
 
 //Converts relative URLs to absolute ones, given a base URL.
 //Modified version of code Found at http://nashruddin.com/PHP_Script_for_Converting_Relative_to_Absolute_URL
 function rel2abs($rel, $base)
 {
+  if (empty($rel)) $rel = ".";
   if (parse_url($rel, PHP_URL_SCHEME) != "" || strpos($rel, "//") === 0) return $rel; //Return if already an absolute URL
   if ($rel[0] == "#" || $rel[0] == "?") return $base.$rel; //Queries and anchors
   extract(parse_url($base)); //Parse base URL and convert to local variables: $scheme, $host, $path
@@ -63,41 +63,6 @@ function rel2abs($rel, $base)
   $abs = "$host$path/$rel"; //Dirty absolute URL
   for ($n = 1; $n > 0; $abs = preg_replace(array("#(/\.?/)#", "#/(?!\.\.)[^/]+/\.\./#"), "/", $abs, -1, $n)) {} //Replace '//' or '/./' or '/foo/../' with '/'
   return $scheme . "://" . $abs; //Absolute URL is ready.
-}
-
-//For the $attrName attribute of each tag in $tags, change all relative URLs to absolute ones in the DomDocument $doc given its corresponding $baseURL.
-function proxifyTags(&$doc, $baseURL, $tags, $attrName) {
-  foreach($tags as $tagName) {
-    foreach($doc->getElementsByTagName($tagName) as $node) {
-      $attrContent = $node->getAttribute($attrName);
-      if (!empty($attrContent)) {
-        $attrContent = rel2abs($attrContent, $baseURL);
-        //Replace any leftmost question mark with an ampersand to blend an existing query string into the proxified URL
-        $attrContent = preg_replace("/\?/", "&", $attrContent, 1);
-        $attrContent = PROXY_PREFIX . $attrContent;
-        $node->setAttribute($attrName, $attrContent);
-      }
-    }
-  }
-}
-
-//Rewrite GET forms so that their actions point back to the proxy.
-function proxifyGETForms(&$doc, $baseURL) {
-  foreach($doc->getElementsByTagName("form") as $form) {
-    $method = $form->getAttribute("method");
-    if (empty($method) || strtolower($method) != "post") { //Only modify GET forms
-      $action = $form->getAttribute("action");
-      //If the form doesn't have an action, the action is the page itself. Otherwise, change an existing action to an absolute version.
-      $action = empty($action) ? $baseURL : rel2abs($action, $baseURL);
-      $form->setAttribute("action", ""); //Wipe out the form action in the DOM, forcing the form to submit back to the proxy
-      //Add a hidden form field containing the original form action, so the proxy knows where to make the request
-      $proxyField = $doc->createElement("input");
-      $proxyField->setAttribute("type", "hidden");
-      $proxyField->setAttribute("name", URL_PARAM);
-      $proxyField->setAttribute("value", $action);
-      $form->appendChild($proxyField);
-    }
-  }
 }
 
 //Proxify contents of url() references in blocks of CSS text.
@@ -120,22 +85,6 @@ function proxifyCSS($css, $baseURL) {
     $css);
 }
 
-//Wrapper for proxifyCSS() to handle inline style tags and attributes rather than stylesheet files.
-function proxifyStyle(&$doc, $baseURL) {
-  //Profixy <style> tags
-  foreach($doc->getElementsByTagName("style") as $style) {
-    if ($style->getAttribute("type") == "text/css") { //If this is a CSS stylesheet...
-      $style->nodeValue = proxifyCSS($style->nodeValue, $baseURL);
-    }
-  }
-  //Proxify elements with a style attribute
-  $xpath = new DOMXPath($doc);
-  $styled_nodes = $xpath->query('//*[@style]');
-  foreach ($styled_nodes as $node) {
-    $node->setAttribute("style", proxifyCSS($node->getAttribute("style"), $baseURL));
-  }
-}
-
 $url = empty($_GET[URL_PARAM]) ? null : $_GET[URL_PARAM];
 if (empty($url)) die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form action=\"\"><input type=\"text\" name=\"" . URL_PARAM . "\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
 if (strpos($url, "//") === 0) $url = "http:" . $url; //Assume that any supplied URLs starting with // are HTTP URLs.
@@ -146,15 +95,52 @@ header("Content-Type: " . $file["contentType"]);
 if (stripos($file["contentType"], "text/html") !== false) { //This is a web page, so proxify the DOM.
   $doc = new DomDocument();
   @$doc->loadHTML($file["data"]);
-  proxifyGETForms($doc, $url);
-  proxifyStyle($doc, $url);
-  proxifyTags($doc, $url, array("a", "link"), "href");
-  proxifyTags($doc, $url, array("img", "script", "iframe", "frame"), "src");
-  proxifyTags($doc, $url, array("form"), "action"); //This will only affect POST forms; GET form actions were blanked by proxifyGETForms() above.
+  $xpath = new DOMXPath($doc);
+
+  //Rewrite GET forms so that their actions point back to the proxy.
+  foreach($xpath->query('//form') as $form) {
+    $method = $form->getAttribute("method");
+    if (empty($method) || strtolower($method) != "post") { //Only modify GET forms
+      $action = $form->getAttribute("action");
+      //If the form doesn't have an action, the action is the page itself. Otherwise, change an existing action to an absolute version.
+      $action = empty($action) ? $url : rel2abs($action, $url);
+      $form->setAttribute("action", ""); //Wipe out the form action in the DOM, forcing the form to submit back to the proxy
+      //Add a hidden form field containing the original form action, so the proxy knows where to make the request
+      $proxyField = $doc->createElement("input");
+      $proxyField->setAttribute("type", "hidden");
+      $proxyField->setAttribute("name", URL_PARAM);
+      $proxyField->setAttribute("value", $action);
+      $form->appendChild($proxyField);
+    }
+  }
+  //Profixy <style> tags
+  foreach($xpath->query('//style') as $style) {
+    if ($style->getAttribute("type") == "text/css") { //If this is a CSS stylesheet...
+      $style->nodeValue = proxifyCSS($style->nodeValue, $url);
+    }
+  }
+  //Proxify tags with a style attribute
+  foreach ($xpath->query('//*[@style]') as $element) {
+    $element->setAttribute("style", proxifyCSS($element->getAttribute("style"), $url));
+  }
+  //Proxify any of these attributes appearing in any tag.
+  $proxifyAttributes = array("href", "src", "action");
+  foreach($proxifyAttributes as $attrName) {
+    foreach($xpath->query('//*[@' . $attrName . ']') as $element) { //For every element with the given attribute...
+      $attrContent = $element->getAttribute($attrName);
+      if ($attrName == "href" && (stripos($attrContent, "javascript:") === 0 || stripos($attrContent, "mailto:") === 0)) continue;
+      else if ($attrName == "action" && strtolower($element->getAttribute("method") != "post")) continue; //Only manipulate POST forms. GET forms were taken care of above.
+      $attrContent = rel2abs($attrContent, $url);
+      //Replace any leftmost question mark with an ampersand to blend an existing query string into the proxified URL
+      $attrContent = preg_replace("/\?/", "&", $attrContent, 1);
+      $attrContent = PROXY_PREFIX . $attrContent;
+      $element->setAttribute($attrName, $attrContent);
+    }
+  }
   echo "<!-- Proxified page constructed by miniProxy -->\n" . $doc->saveHTML();
 } else if (stripos($file["contentType"], "text/css") !== false) { //This is CSS, so proxify url() references.
   echo proxifyCSS($file["data"], $url);
 } else { //This isn't a web page or CSS, so serve unmodified through the proxy with the correct headers (images, JavaScript, etc.)
-  header("Content-Length: " . $file["contentLength"]);
+  header("Content-Length: " . strlen($file["data"]));
   echo $file["data"];
 }
