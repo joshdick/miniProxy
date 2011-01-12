@@ -96,13 +96,12 @@ if (stripos($file["contentType"], "text/html") !== false) { //This is a web page
   @$doc->loadHTML($file["data"]);
   $xpath = new DOMXPath($doc);
 
-  //Rewrite GET forms so that their actions point back to the proxy.
+  //Rewrite forms so that their actions point back to the proxy.
   foreach($xpath->query('//form') as $form) {
     $method = $form->getAttribute("method");
-    if (empty($method) || strtolower($method) != "post") { //Only modify GET forms
-      $action = $form->getAttribute("action");
-      //If the form doesn't have an action, the action is the page itself. Otherwise, change an existing action to an absolute version.
-      $action = empty($action) ? $url : rel2abs($action, $url);
+    $action = $form->getAttribute("action");
+    $action = empty($action) ? $url : rel2abs($action, $url); //If the form doesn't have an action, the action is the page itself. Otherwise, change an existing action to an absolute version.
+    if (empty($method) || strtolower($method) != "post") { //This is a GET form
       $form->setAttribute("action", ""); //Wipe out the form action in the DOM, forcing the form to submit back to the proxy
       //Add a hidden form field containing the original form action, so the proxy knows where to make the request
       $proxyField = $doc->createElement("input");
@@ -110,6 +109,9 @@ if (stripos($file["contentType"], "text/html") !== false) { //This is a web page
       $proxyField->setAttribute("name", URL_PARAM);
       $proxyField->setAttribute("value", $action);
       $form->appendChild($proxyField);
+    } else { //This is a POST form, so change its action to a proxified version.
+      $action = preg_replace("/\?/", "&", $action, 1); //Replace any leftmost question mark with an ampersand to blend an existing query string into the proxified URL
+      $form->setAttribute("action", PROXY_PREFIX . $action);
     }
   }
   //Profixy <style> tags
@@ -121,12 +123,11 @@ if (stripos($file["contentType"], "text/html") !== false) { //This is a web page
     $element->setAttribute("style", proxifyCSS($element->getAttribute("style"), $url));
   }
   //Proxify any of these attributes appearing in any tag.
-  $proxifyAttributes = array("href", "src", "action");
+  $proxifyAttributes = array("href", "src");
   foreach($proxifyAttributes as $attrName) {
     foreach($xpath->query('//*[@' . $attrName . ']') as $element) { //For every element with the given attribute...
       $attrContent = $element->getAttribute($attrName);
       if ($attrName == "href" && (stripos($attrContent, "javascript:") === 0 || stripos($attrContent, "mailto:") === 0)) continue;
-      else if ($attrName == "action" && strtolower($element->getAttribute("method") != "post")) continue; //Only manipulate POST forms. GET forms were taken care of above.
       $attrContent = rel2abs($attrContent, $url);
       //Replace any leftmost question mark with an ampersand to blend an existing query string into the proxified URL
       $attrContent = preg_replace("/\?/", "&", $attrContent, 1);
