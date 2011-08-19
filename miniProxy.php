@@ -43,7 +43,7 @@ function getFile($fileLoc)
   $data = curl_exec($ch);
   $responseInfo = curl_getinfo($ch);
   if ($responseInfo['http_code'] != 200) {
-    $data = "Error: Server at " . $fileLoc . " sent HTTP response code " . $httpCode . ".";
+    $data = "Error: Server at " . $fileLoc . " sent HTTP response code " . $responseInfo['http_code'] . ".";
   }
   curl_close($ch);
   return array("data" => $data, "contentType" => $responseInfo['content_type']);
