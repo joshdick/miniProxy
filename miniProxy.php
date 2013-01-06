@@ -5,54 +5,92 @@ Written and maintained by Joshua Dick <http://joshdick.net>.
 miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html>.
 */
 
-define("URL_PARAM", "___mp_url");
-define("PROXY_PREFIX", "http://" . $_SERVER['SERVER_NAME'] . ":" . $_SERVER['SERVER_PORT'] . $_SERVER['PHP_SELF'] . "?" . URL_PARAM . "=");
+ob_start("ob_gzhandler");
 
-//Retrieves contents and HTTP headers of a URL with cURL.
-function getFile($fileLoc)
-{
-  if (!function_exists("curl_init")) die ("miniProxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
-  //Sends user-agent of actual browser being used--unless there isn't one.
-  $user_agent = $_SERVER['HTTP_USER_AGENT'];
+if (!function_exists("curl_init")) die ("This proxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
+
+define("PROXY_PREFIX", "http://" . $_SERVER["SERVER_NAME"] . ":" . $_SERVER["SERVER_PORT"] . $_SERVER["SCRIPT_NAME"] . "/");
+
+//Makes an HTTP request via cURL, using request data that was passed directly to this script.
+function makeRequest($url) {
+
+  //Tell cURL to make the request using the brower's user-agent if there is one, or a fallback user-agent otherwise.
+  $user_agent = $_SERVER["HTTP_USER_AGENT"];
   if (empty($user_agent)) {
     $user_agent = "Mozilla/5.0 (compatible; miniProxy)";
   }
   $ch = curl_init();
   curl_setopt($ch, CURLOPT_USERAGENT, $user_agent);
-  curl_setopt($ch, CURLOPT_HEADER, false);
+
+  //Proxy the browser's request headers.
+  $browserRequestHeaders = getallheaders();
+  //(...but let cURL set some of these headers on its own.)
+  //TODO: The unset()s below assume that browsers' request headers
+  //will use casing (capitalizations) that appear within them.
+  unset($browserRequestHeaders["Host"]);
+  unset($browserRequestHeaders["Content-Length"]);
+  //Throw away the browser's Accept-Encoding header if any;
+  //let cURL make the request using gzip if possible.
+  unset($browserRequestHeaders["Accept-Encoding"]);
+  curl_setopt($ch, CURLOPT_ENCODING, "");
+  //Transform the associative array from getallheaders() into an
+  //indexed array of header strings to be passed to cURL.
+  $curlRequestHeaders = array();
+  foreach ($browserRequestHeaders as $name => $value) {
+    $curlRequestHeaders[] = $name . ": " . $value;
+  }
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $curlRequestHeaders);
+
+  //Proxy any received GET/POST/PUT data.
+  switch ($_SERVER["REQUEST_METHOD"]) {
+    case "GET":
+      $getData = array();
+      foreach ($_GET as $key => $value) {
+          $getData[] = urlencode($key) . "=" . urlencode($value);
+      }
+      if (count($getData) > 0) $url .= "?" . implode("&", $getData);
+    break;
+    case "POST":
+      curl_setopt($ch, CURLOPT_POST, true);
+      //For some reason, $HTTP_RAW_POST_DATA isn't working as documented at
+      //http://php.net/manual/en/reserved.variables.httprawpostdata.php
+      //but the php://input method works. This is likely to be flaky
+      //across different server environments.
+      //More info here: http://stackoverflow.com/questions/8899239/http-raw-post-data-not-being-populated-after-upgrade-to-php-5-3
+      curl_setopt($ch, CURLOPT_POSTFIELDS, file_get_contents("php://input"));
+    break;
+    case "PUT":
+      curl_setopt($ch, CURLOPT_PUT, true);
+      curl_setopt($ch, CURLOPT_INFILE, fopen("php://input"));
+    break;
+  }
+
+  //Other cURL options.
+  curl_setopt($ch, CURLOPT_HEADER, true);
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt ($ch, CURLOPT_FAILONERROR, true);
-  //If data was POSTed to the proxy, re-POST the data to the requested URL
-  $postData = array();
-  foreach ($_POST as $key => $value) {
-    $postData[] = $key . "=" . $value;
-  }
-  if (count($postData) > 0) {
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, implode("&", $postData));
-  }
-  //If data was GETed to the proxy, re-GET the data to the requested URL
-  $getData = array();
-  foreach ($_GET as $key => $value) {
-    if ($key == URL_PARAM) continue; //Strip out any data that was added when proxifying GET forms
-    $getData[] = urlencode($key) . "=" . urlencode($value);
-  }
-  if (count($getData) > 0) $fileLoc .= "?" . implode("&", $getData);
-  curl_setopt($ch, CURLOPT_URL, $fileLoc);
-  $data = curl_exec($ch);
+
+  //Set the request URL.
+  curl_setopt($ch, CURLOPT_URL, $url);
+
+  //Make the request.
+  $response = curl_exec($ch);
   $responseInfo = curl_getinfo($ch);
-  if ($responseInfo['http_code'] != 200) {
-    $data = "Error: Server at " . $fileLoc . " sent HTTP response code " . $responseInfo['http_code'] . ".";
-  }
+  $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
   curl_close($ch);
-  return array("data" => $data, "contentType" => $responseInfo['content_type']);
+
+  //Setting CURLOPT_HEADER to true above forces the response headers and body
+  //to be output together--separate them.
+  $responseHeaders = substr($response, 0, $headerSize);
+  $responseBody = substr($response, $headerSize);
+
+  return array("headers" => $responseHeaders, "body" => $responseBody, "responseInfo" => $responseInfo);
 }
 
 //Converts relative URLs to absolute ones, given a base URL.
-//Modified version of code Found at http://nashruddin.com/PHP_Script_for_Converting_Relative_to_Absolute_URL
-function rel2abs($rel, $base)
-{
+//Modified version of code found at http://nashruddin.com/PHP_Script_for_Converting_Relative_to_Absolute_URL
+function rel2abs($rel, $base) {
   if (empty($rel)) $rel = ".";
   if (parse_url($rel, PHP_URL_SCHEME) != "" || strpos($rel, "//") === 0) return $rel; //Return if already an absolute URL
   if ($rel[0] == "#" || $rel[0] == "?") return $base.$rel; //Queries and anchors
@@ -84,41 +122,57 @@ function proxifyCSS($css, $baseURL) {
     $css);
 }
 
-$url = empty($_GET[URL_PARAM]) ? null : $_GET[URL_PARAM];
-if (empty($url)) die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form action=\"\"><input type=\"text\" name=\"" . URL_PARAM . "\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
+$url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
+if (empty($url)) die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false;\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
 if (strpos($url, "//") === 0) $url = "http:" . $url; //Assume that any supplied URLs starting with // are HTTP URLs.
 if (!preg_match("@^.*://@", $url)) $url = "http://" . $url; //Assume that any supplied URLs without a scheme are HTTP URLs.
 
-$file = getFile($url);
-header("Content-Type: " . $file["contentType"]);
-if (stripos($file["contentType"], "text/html") !== false) { //This is a web page, so proxify the DOM.
+$response = makeRequest($url);
+$rawResponseHeaders = $response["headers"];
+$responseBody = $response["body"];
+$responseInfo = $response["responseInfo"];
+
+//cURL can make multiple requests internally (while following 302 redirects), and reports
+//headers for every request it makes. Only proxy the last set of received response headers,
+//corresponding to the final request made by cURL for any given call to makeRequest().
+$responseHeaderBlocks = array_filter(explode("\r\n\r\n", $rawResponseHeaders));
+$lastHeaderBlock = end($responseHeaderBlocks);
+$headerLines = explode("\r\n", $lastHeaderBlock);
+foreach ($headerLines as $header) {
+  if (stripos($header, "Content-Length") === false && stripos($header, "Transfer-Encoding") === false) {
+    header($header);
+  }
+}
+
+$contentType = "";
+if (isset($responseInfo["content_type"])) $contentType = $responseInfo["content_type"];
+
+//This is presumably a web page, so attempt to proxify the DOM.
+if (stripos($contentType, "text/html") !== false) {
+
+  //Attempt to normalize character encoding.
+  $responseBody = mb_convert_encoding($responseBody, "HTML-ENTITIES", mb_detect_encoding($responseBody));
+
+  //Parse the DOM.
   $doc = new DomDocument();
-  @$doc->loadHTML($file["data"]);
+  @$doc->loadHTML($responseBody);
   $xpath = new DOMXPath($doc);
 
   //Rewrite forms so that their actions point back to the proxy.
   foreach($xpath->query('//form') as $form) {
     $method = $form->getAttribute("method");
     $action = $form->getAttribute("action");
-    $action = empty($action) ? $url : rel2abs($action, $url); //If the form doesn't have an action, the action is the page itself. Otherwise, change an existing action to an absolute version.
-    if (empty($method) || strtolower($method) != "post") { //This is a GET form
-      $form->setAttribute("action", ""); //Wipe out the form action in the DOM, forcing the form to submit back to the proxy
-      //Add a hidden form field containing the original form action, so the proxy knows where to make the request
-      $proxyField = $doc->createElement("input");
-      $proxyField->setAttribute("type", "hidden");
-      $proxyField->setAttribute("name", URL_PARAM);
-      $proxyField->setAttribute("value", $action);
-      $form->appendChild($proxyField);
-    } else { //This is a POST form, so change its action to a proxified version.
-      $action = preg_replace("/\?/", "&", $action, 1); //Replace any leftmost question mark with an ampersand to blend an existing query string into the proxified URL
-      $form->setAttribute("action", PROXY_PREFIX . $action);
-    }
+    //If the form doesn't have an action, the action is the page itself.
+    //Otherwise, change an existing action to an absolute version.
+    $action = empty($action) ? $url : rel2abs($action, $url);
+    //Rewrite the form action to point back at the proxy.
+    $form->setAttribute("action", PROXY_PREFIX . $action);
   }
-  //Profixy <style> tags
+  //Profixy <style> tags.
   foreach($xpath->query('//style') as $style) {
     $style->nodeValue = proxifyCSS($style->nodeValue, $url);
   }
-  //Proxify tags with a style attribute
+  //Proxify tags with a "style" attribute.
   foreach ($xpath->query('//*[@style]') as $element) {
     $element->setAttribute("style", proxifyCSS($element->getAttribute("style"), $url));
   }
@@ -129,16 +183,107 @@ if (stripos($file["contentType"], "text/html") !== false) { //This is a web page
       $attrContent = $element->getAttribute($attrName);
       if ($attrName == "href" && (stripos($attrContent, "javascript:") === 0 || stripos($attrContent, "mailto:") === 0)) continue;
       $attrContent = rel2abs($attrContent, $url);
-      //Replace any leftmost question mark with an ampersand to blend an existing query string into the proxified URL
-      $attrContent = preg_replace("/\?/", "&", $attrContent, 1);
       $attrContent = PROXY_PREFIX . $attrContent;
       $element->setAttribute($attrName, $attrContent);
     }
   }
+
+  //Attempt to force AJAX requests to be made through the proxy by
+  //wrapping window.XMLHttpRequest.prototype.open in order to make
+  //all request URLs absolute and point back to the proxy.
+  //The rel2abs() JavaScript function serves the same purpose as the server-side one in this file,
+  //but is used in the browser to ensure all AJAX request URLs are absolute and not relative.
+  //Uses code from these sources:
+  //http://stackoverflow.com/questions/7775767/javascript-overriding-xmlhttprequest-open
+  //https://gist.github.com/1088850
+  //TODO: This is obviously only useful for browsers that use XMLHttpRequest but
+  //it's better than nothing.
+
+  $head = $xpath->query('//head')->item(0);
+  $body = $xpath->query('//body')->item(0);
+  $prependElem = $head != NULL ? $head : $body;
+
+  //Only bother trying to apply this hack if the DOM has a <head> or <body> element;
+  //insert some JavaScript at the top of whichever is available first.
+  //Protects against cases where the server sends a Content-Type of "text/html" when
+  //what's coming back is most likely not actually HTML.
+  //TODO: Do this check before attempting to do any sort of DOM parsing?
+  if ($prependElem != NULL) {
+
+    $scriptElem = $doc->createElement("script",
+      '(function() {
+
+        if (window.XMLHttpRequest) {
+
+          function parseURI(url) {
+            var m = String(url).replace(/^\s+|\s+$/g, "").match(/^([^:\/?#]+:)?(\/\/(?:[^:@]*(?::[^:@]*)?@)?(([^:\/?#]*)(?::(\d*))?))?([^?#]*)(\?[^#]*)?(#[\s\S]*)?/);
+            // authority = "//" + user + ":" + pass "@" + hostname + ":" port
+            return (m ? {
+              href : m[0] || "",
+              protocol : m[1] || "",
+              authority: m[2] || "",
+              host : m[3] || "",
+              hostname : m[4] || "",
+              port : m[5] || "",
+              pathname : m[6] || "",
+              search : m[7] || "",
+              hash : m[8] || ""
+            } : null);
+          }
+
+          function rel2abs(base, href) { // RFC 3986
+
+            function removeDotSegments(input) {
+              var output = [];
+              input.replace(/^(\.\.?(\/|$))+/, "")
+                .replace(/\/(\.(\/|$))+/g, "/")
+                .replace(/\/\.\.$/, "/../")
+                .replace(/\/?[^\/]*/g, function (p) {
+                  if (p === "/..") {
+                    output.pop();
+                  } else {
+                    output.push(p);
+                  }
+                });
+              return output.join("").replace(/^\//, input.charAt(0) === "/" ? "/" : "");
+            }
+
+            href = parseURI(href || "");
+            base = parseURI(base || "");
+
+            return !href || !base ? null : (href.protocol || base.protocol) +
+            (href.protocol || href.authority ? href.authority : base.authority) +
+            removeDotSegments(href.protocol || href.authority || href.pathname.charAt(0) === "/" ? href.pathname : (href.pathname ? ((base.authority && !base.pathname ? "/" : "") + base.pathname.slice(0, base.pathname.lastIndexOf("/") + 1) + href.pathname) : base.pathname)) +
+            (href.protocol || href.authority || href.pathname ? href.search : (href.search || base.search)) +
+            href.hash;
+
+          }
+
+          var proxied = window.XMLHttpRequest.prototype.open;
+          window.XMLHttpRequest.prototype.open = function() {
+              if (arguments[1] !== null && arguments[1] !== undefined) {
+                var url = arguments[1];
+                url = rel2abs("' . $url . '", url);
+                url = "' . PROXY_PREFIX . '" + url;
+                arguments[1] = url;
+              }
+              return proxied.apply(this, [].slice.call(arguments));
+          };
+
+        }
+
+      })();'
+    );
+    $scriptElem->setAttribute("type", "text/javascript");
+
+    $prependElem->insertBefore($scriptElem, $prependElem->firstChild);
+
+  }
+
   echo "<!-- Proxified page constructed by miniProxy -->\n" . $doc->saveHTML();
-} else if (stripos($file["contentType"], "text/css") !== false) { //This is CSS, so proxify url() references.
-  echo proxifyCSS($file["data"], $url);
+} else if (stripos($contentType, "text/css") !== false) { //This is CSS, so proxify url() references.
+  echo proxifyCSS($responseBody, $url);
 } else { //This isn't a web page or CSS, so serve unmodified through the proxy with the correct headers (images, JavaScript, etc.)
-  header("Content-Length: " . strlen($file["data"]));
-  echo $file["data"];
+  header("Content-Length: " . strlen($responseBody));
+  echo $responseBody;
 }
