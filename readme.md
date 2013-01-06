@@ -24,7 +24,7 @@ miniProxy has several known limitations. Some of them may be fixed in future rel
 
 * &lt;object&gt; tags are not handled
 * No cookie support
-* Resources requested via JavaScript/AJAX are not proxied
+* Basic AJAX support, but only for browsers that use XMLHttpRequest
 
 ## Contact and Feedback
 
