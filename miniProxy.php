@@ -9,6 +9,22 @@ ob_start("ob_gzhandler");
 
 if (!function_exists("curl_init")) die ("This proxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
 
+//Adapted from http://www.php.net/manual/en/function.getallheaders.php#99814
+if (!function_exists("getallheaders")) {
+  function getallheaders() {
+    $result = array();
+    foreach($_SERVER as $key => $value) {
+      if (substr($key, 0, 5) == "HTTP_") {
+        $key = str_replace(" ", "-", ucwords(strtolower(str_replace("_", " ", substr($key, 5)))));
+        $result[$key] = $value;
+      } else {
+        $result[$key] = $value;
+      }
+    }
+    return $result;
+  }
+}
+
 define("PROXY_PREFIX", "http://" . $_SERVER["SERVER_NAME"] . ":" . $_SERVER["SERVER_PORT"] . $_SERVER["SCRIPT_NAME"] . "/");
 
 //Makes an HTTP request via cURL, using request data that was passed directly to this script.
