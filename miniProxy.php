@@ -64,7 +64,13 @@ function makeRequest($url) {
       foreach ($_GET as $key => $value) {
           $getData[] = urlencode($key) . "=" . urlencode($value);
       }
-      if (count($getData) > 0) $url .= "?" . implode("&", $getData);
+      if (count($getData) > 0) {
+        //Remove any GET data from the URL, and re-add what was read.
+        //TODO: Is the code in this "GET" case necessary?
+        //It reads, strips, then re-adds all GET data; this may be a no-op.
+        $url = substr($url, 0, strrpos($url, "?"));
+        $url .= "?" . implode("&", $getData);
+      }
     break;
     case "POST":
       curl_setopt($ch, CURLOPT_POST, true);
