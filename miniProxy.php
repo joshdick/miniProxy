@@ -25,7 +25,7 @@ if (!function_exists("getallheaders")) {
   }
 }
 
-define("PROXY_PREFIX", "http://" . $_SERVER["SERVER_NAME"] . ":" . $_SERVER["SERVER_PORT"] . $_SERVER["SCRIPT_NAME"] . "/");
+define("PROXY_PREFIX", "http".($_SERVER['HTTPS'] ? 's' : '')."://" . $_SERVER["SERVER_NAME"] . ":" . $_SERVER["SERVER_PORT"] . $_SERVER["SCRIPT_NAME"] . "/");
 
 //Makes an HTTP request via cURL, using request data that was passed directly to this script.
 function makeRequest($url) {
