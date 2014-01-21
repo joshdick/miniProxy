@@ -25,7 +25,7 @@ if (!function_exists("getallheaders")) {
   }
 }
 
-define("PROXY_PREFIX", "http" . (isset($_SERVER['HTTPS']) ? "s" : "") . "://" . $_SERVER["SERVER_NAME"] . ":" . $_SERVER["SERVER_PORT"] . $_SERVER["SCRIPT_NAME"] . "/");
+define("PROXY_PREFIX", "http" . (isset($_SERVER['HTTPS']) ? "s" : "") . "://" . $_SERVER["SERVER_NAME"] . ($_SERVER["SERVER_PORT"] != 80 ? ":" . $_SERVER["SERVER_PORT"] : "") . $_SERVER["SCRIPT_NAME"] . "/");
 
 //Makes an HTTP request via cURL, using request data that was passed directly to this script.
 function makeRequest($url) {
@@ -119,7 +119,8 @@ function rel2abs($rel, $base) {
   extract(parse_url($base)); //Parse base URL and convert to local variables: $scheme, $host, $path
   $path = isset($path) ? preg_replace('#/[^/]*$#', "", $path) : "/"; //Remove non-directory element from path
   if ($rel[0] == '/') $path = ""; //Destroy path if relative url points to root
-  $abs = "$host$path/$rel"; //Dirty absolute URL
+  $port = isset($port) && $port != 80 ? ":" . $port : "";
+  $abs = "$host$path$port/$rel"; //Dirty absolute URL
   for ($n = 1; $n > 0; $abs = preg_replace(array("#(/\.?/)#", "#/(?!\.\.)[^/]+/\.\./#"), "/", $abs, -1, $n)) {} //Replace '//' or '/./' or '/foo/../' with '/'
   return $scheme . "://" . $abs; //Absolute URL is ready.
 }
