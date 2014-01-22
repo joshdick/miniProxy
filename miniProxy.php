@@ -120,7 +120,15 @@ function rel2abs($rel, $base) {
   $path = isset($path) ? preg_replace('#/[^/]*$#', "", $path) : "/"; //Remove non-directory element from path
   if ($rel[0] == '/') $path = ""; //Destroy path if relative url points to root
   $port = isset($port) && $port != 80 ? ":" . $port : "";
-  $abs = "$host$path$port/$rel"; //Dirty absolute URL
+  $auth = "";
+  if (isset($user)) {
+    $auth = $user;
+    if (isset($pass)) {
+      $auth .= ":" . $pass;
+    }
+    $auth .= "@";
+  }
+  $abs = "$auth$host$path$port/$rel"; //Dirty absolute URL
   for ($n = 1; $n > 0; $abs = preg_replace(array("#(/\.?/)#", "#/(?!\.\.)[^/]+/\.\./#"), "/", $abs, -1, $n)) {} //Replace '//' or '/./' or '/foo/../' with '/'
   return $scheme . "://" . $abs; //Absolute URL is ready.
 }
