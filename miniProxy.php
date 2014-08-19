@@ -182,7 +182,10 @@ if (isset($responseInfo["content_type"])) $contentType = $responseInfo["content_
 if (stripos($contentType, "text/html") !== false) {
 
   //Attempt to normalize character encoding.
-  $responseBody = mb_convert_encoding($responseBody, "HTML-ENTITIES", mb_detect_encoding($responseBody));
+  $detectedEncoding = mb_detect_encoding($responseBody, "UTF-8, ISO-8859-1");
+  if ($detectedEncoding) {
+    $responseBody = mb_convert_encoding($responseBody, "HTML-ENTITIES", $detectedEncoding);
+  }
 
   //Parse the DOM.
   $doc = new DomDocument();
