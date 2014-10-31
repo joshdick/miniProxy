@@ -5,9 +5,31 @@ Written and maintained by Joshua Dick <http://joshdick.net>.
 miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html>.
 */
 
+/****************************** START CONFIGURATION ******************************/
+
+//If you want to allow proxying any URL, set $whitelistPatterns to an empty array (the default).
+//If you only want to allow proxying specific URLs (whitelist), add corresponding regular expressions
+//to the $whitelistPatterns array. Enter the most specific patterns possible, to prevent possible abuse.
+//You can optionally use the "getHostnamePattern()" helper function to build a regular expression that
+//matches all URLs for a given hostname.
+$whitelistPatterns = array(
+    //Usage example: To support Google URLs, including sub-domains, uncomment the
+    //line below (which is equivalent to [ @^https?://([a-z0-9-]+\.)*google\.com@i ]):
+    //getHostnamePattern("google.com")
+);
+
+/****************************** END CONFIGURATION ******************************/
+
 ob_start("ob_gzhandler");
 
 if (!function_exists("curl_init")) die ("This proxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
+
+//Helper function for use inside $whitelistPatterns.
+//Returns a regex that matches all HTTP[S] URLs for a given hostname.
+function getHostnamePattern($hostname) {
+    $escapedHostname = str_replace(".", "\.", $hostname);
+    return "@^https?://([a-z0-9-]+\.)*" . $escapedHostname . "@i";
+}
 
 //Adapted from http://www.php.net/manual/en/function.getallheaders.php#99814
 if (!function_exists("getallheaders")) {
@@ -155,6 +177,18 @@ if (empty($url)) {
 } else if (!preg_match("@^.*://@", $url)) {
     //Assume that any supplied URLs without a scheme are HTTP URLs.
     $url = "http://" . $url;
+}
+
+//Validate the requested URL against the whitelist.
+$urlIsValid = count($whitelistPatterns) === 0;
+foreach ($whitelistPatterns as $pattern) {
+    if (preg_match($pattern, $url)) {
+      $urlIsValid = true;
+      break;
+    }
+}
+if (!$urlIsValid) {
+    die("Error: The requested URL was disallowed by the server administrator.");
 }
 
 $response = makeRequest($url);
