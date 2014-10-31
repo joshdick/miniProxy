@@ -5,6 +5,8 @@ Written and maintained by Joshua Dick <http://joshdick.net>.
 miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html>.
 */
 
+require_once __DIR__ . '/config.php';
+
 ob_start("ob_gzhandler");
 
 if (!function_exists("curl_init")) die ("This proxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
@@ -157,6 +159,18 @@ $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
 if (empty($url)) die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false;\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
 if (strpos($url, "//") === 0) $url = "http:" . $url; //Assume that any supplied URLs starting with // are HTTP URLs.
 if (!preg_match("@^.*://@", $url)) $url = "http://" . $url; //Assume that any supplied URLs without a scheme are HTTP URLs.
+
+// Validate URL
+$urlIsValid = count($validDestPatterns) === 0; // If $validDestPatterns is empty then all URLs are valid otherwise we validate
+foreach ($validDestPatterns as $pattern) {
+    if (preg_match($pattern, $url)) {
+	$urlIsValid = true;
+	break;
+    }
+}
+if (!$urlIsValid) {
+    die("Error: Invalid URL.");
+}
 
 $response = makeRequest($url);
 $rawResponseHeaders = $response["headers"];
