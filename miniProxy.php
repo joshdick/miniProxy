@@ -153,6 +153,16 @@ function proxifyCSS($css, $baseURL) {
     $css);
 }
 
+function addHeader($header) {
+    if ((stripos($header, "Content-Length") !== false) ||
+	(stripos($header, "Transfer-Encoding") !== false) ||
+	(stripos($header, "Content-Encoding") !== false && stripos($header, "gzip") !== false)) {
+	return;
+    }
+
+    header($header);
+}
+
 $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
 if (empty($url)) die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false;\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
 if (strpos($url, "//") === 0) $url = "http:" . $url; //Assume that any supplied URLs starting with // are HTTP URLs.
@@ -170,9 +180,7 @@ $responseHeaderBlocks = array_filter(explode("\r\n\r\n", $rawResponseHeaders));
 $lastHeaderBlock = end($responseHeaderBlocks);
 $headerLines = explode("\r\n", $lastHeaderBlock);
 foreach ($headerLines as $header) {
-  if (stripos($header, "Content-Length") === false && stripos($header, "Transfer-Encoding") === false) {
-    header($header);
-  }
+    addHeader($header);
 }
 
 $contentType = "";
