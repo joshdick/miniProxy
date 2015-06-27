@@ -5,11 +5,31 @@ Written and maintained by Joshua Dick <http://joshdick.net>.
 miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html>.
 */
 
-require_once __DIR__ . '/config.php';
+/*** Configuration ***/
+
+// If you want to allow proxying any URL, then set $validDestPatterns to an empty array.
+// If you want to limit the service to specific URLs (whitelist), add a regex pattern that matches that URL to the $validDestPatterns array. 
+// Try to enter the most specific pattern to prevent possible abuse.
+$validDestPatterns = array(
+    // Usage example, to support Google URLs, including sub-domains, uncomment the following line: 
+    // getHostnamePattern('google.com')
+);
+
+
+/*** Code ***/
 
 ob_start("ob_gzhandler");
 
 if (!function_exists("curl_init")) die ("This proxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
+
+// The following function gets a host name and returns a URL regex pattern matching that host name.
+// For example if we want to get a pattern that will match 'example.com' and all of it sub-domains we will call the function like so: 
+// getHostnamePattern('example.com');
+// The returned pattern will match both http and https URLs.
+function getHostnamePattern($hostname) {
+    $escapedHostname = str_replace('.', '\.', $hostname);
+    return '@^https?://([a-z0-9-]+\.)*' . $escapedHostname . '@i';
+}
 
 //Adapted from http://www.php.net/manual/en/function.getallheaders.php#99814
 if (!function_exists("getallheaders")) {
