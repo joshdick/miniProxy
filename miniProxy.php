@@ -5,12 +5,18 @@ Written and maintained by Joshua Dick <http://joshdick.net>.
 miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html>.
 */
 
-require_once __DIR__ . '/config.php';
+/*** Configuration ***/
+
+// Set $forceCORS to true if you want to allow "Cross-Origin Resource Sharing" with the proxied site.
+$forceCORS = false;
+
+
+/*** Code ***/
 
 ob_start("ob_gzhandler");
 
 function enableCORS() {
-    // This function is based on a disscussion from: http://stackoverflow.com/questions/8719276/cors-with-php-headers
+    // This function is based on a discussion from: http://stackoverflow.com/questions/8719276/cors-with-php-headers
 
     // Allow access from any origin
     header("Access-Control-Allow-Origin: *");
