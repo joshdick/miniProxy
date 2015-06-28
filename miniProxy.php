@@ -5,7 +5,40 @@ Written and maintained by Joshua Dick <http://joshdick.net>.
 miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html>.
 */
 
+/*** Configuration ***/
+
+// Set $forceCORS to true if you want to allow "Cross-Origin Resource Sharing" with the proxied site.
+$forceCORS = false;
+
+
+/*** Code ***/
+
 ob_start("ob_gzhandler");
+
+function enableCORS() {
+    // This function is based on a discussion from: http://stackoverflow.com/questions/8719276/cors-with-php-headers
+
+    // Allow access from any origin
+    header("Access-Control-Allow-Origin: *");
+    header('Access-Control-Allow-Credentials: true');
+
+    // Handle Access-Control headers received during an OPTIONS request
+    if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+	if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'])) {
+	    header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+	}
+
+	if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'])) {
+	    header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
+	}
+
+	exit(0);
+    }
+}
+
+if ($forceCORS) {
+    enableCORS();
+}
 
 if (!function_exists("curl_init")) die ("This proxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
 
