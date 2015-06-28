@@ -140,19 +140,21 @@ function proxifyCSS($css, $baseURL) {
     $css);
 }
 
-// Parse/extract URL
+//Extract and sanitize the requested URL.
 $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
 if (empty($url)) {
     die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false;\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
 } else if (strpos($url, "//") === 0) {
-    $url = "http:" . $url; //Assume that any supplied URLs starting with // are HTTP URLs.
-} else if (strpos($url, ':/') !== strpos($url, '://')) {
-    // Some web servers (e.g. IIS 8.5) modify double slash in query string to a single slash, before we can proxy the
-    // URL we need to fix this.
-    $pos = strpos($url, ':/');
-    $url = substr_replace($url, '://', $pos, strlen(':/'));
+    //Assume that any supplied URLs starting with // are HTTP URLs.
+    $url = "http:" . $url;
+} else if (strpos($url, ":/") !== strpos($url, "://")) {
+    //Work around the fact that some web servers (e.g. IIS 8.5) change double slashes appearing in the URL to a single slash.
+    //See https://github.com/joshdick/miniProxy/pull/14
+    $pos = strpos($url, ":/");
+    $url = substr_replace($url, "://", $pos, strlen(":/"));
 } else if (!preg_match("@^.*://@", $url)) {
-    $url = "http://" . $url; //Assume that any supplied URLs without a scheme are HTTP URLs.
+    //Assume that any supplied URLs without a scheme are HTTP URLs.
+    $url = "http://" . $url;
 }
 
 $response = makeRequest($url);
