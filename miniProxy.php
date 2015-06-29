@@ -31,6 +31,22 @@ function getHostnamePattern($hostname) {
     return "@^https?://([a-z0-9-]+\.)*" . $escapedHostname . "@i";
 }
 
+//Helper function used to removes/unset keys from an associative array using case insensitive matching
+function removeKeys(&$assoc, $keys2remove) {
+    $keys = array_keys($assoc);
+    $map = array();
+    foreach ($keys as $key) {
+         $map[strtolower($key)] = $key;
+    }
+
+    foreach ($keys2remove as $key) {
+        $key = strtolower($key);
+        if (isset($map[$key])) {
+             unset($assoc[$map[$key]]);
+        }
+    }
+}
+
 //Adapted from http://www.php.net/manual/en/function.getallheaders.php#99814
 if (!function_exists("getallheaders")) {
   function getallheaders() {
@@ -63,13 +79,11 @@ function makeRequest($url) {
   //Proxy the browser's request headers.
   $browserRequestHeaders = getallheaders();
   //(...but let cURL set some of these headers on its own.)
-  //TODO: The unset()s below assume that browsers' request headers
-  //will use casing (capitalizations) that appear within them.
-  unset($browserRequestHeaders["Host"]);
-  unset($browserRequestHeaders["Content-Length"]);
-  //Throw away the browser's Accept-Encoding header if any;
-  //let cURL make the request using gzip if possible.
-  unset($browserRequestHeaders["Accept-Encoding"]);
+  removeKeys($browserRequestHeaders, array(
+    "Host", 
+    "Content-Length", 
+    "Accept-Encoding" //Throw away the browser's Accept-Encoding header if any and let cURL make the request using gzip if possible.
+  ));
   curl_setopt($ch, CURLOPT_ENCODING, "");
   //Transform the associative array from getallheaders() into an
   //indexed array of header strings to be passed to cURL.
