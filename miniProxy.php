@@ -5,9 +5,31 @@ Written and maintained by Joshua Dick <http://joshdick.net>.
 miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html>.
 */
 
+/****************************** START CONFIGURATION ******************************/
+
+//If you want to allow proxying any URL, set $whitelistPatterns to an empty array (the default).
+//If you only want to allow proxying specific URLs (whitelist), add corresponding regular expressions
+//to the $whitelistPatterns array. Enter the most specific patterns possible, to prevent possible abuse.
+//You can optionally use the "getHostnamePattern()" helper function to build a regular expression that
+//matches all URLs for a given hostname.
+$whitelistPatterns = array(
+    //Usage example: To support Google URLs, including sub-domains, uncomment the
+    //line below (which is equivalent to [ @^https?://([a-z0-9-]+\.)*google\.com@i ]):
+    //getHostnamePattern("google.com")
+);
+
+/****************************** END CONFIGURATION ******************************/
+
 ob_start("ob_gzhandler");
 
 if (!function_exists("curl_init")) die ("This proxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
+
+//Helper function for use inside $whitelistPatterns.
+//Returns a regex that matches all HTTP[S] URLs for a given hostname.
+function getHostnamePattern($hostname) {
+    $escapedHostname = str_replace(".", "\.", $hostname);
+    return "@^https?://([a-z0-9-]+\.)*" . $escapedHostname . "@i";
+}
 
 //Adapted from http://www.php.net/manual/en/function.getallheaders.php#99814
 if (!function_exists("getallheaders")) {
@@ -59,19 +81,6 @@ function makeRequest($url) {
 
   //Proxy any received GET/POST/PUT data.
   switch ($_SERVER["REQUEST_METHOD"]) {
-    case "GET":
-      $getData = array();
-      foreach ($_GET as $key => $value) {
-          $getData[] = urlencode($key) . "=" . urlencode($value);
-      }
-      if (count($getData) > 0) {
-        //Remove any GET data from the URL, and re-add what was read.
-        //TODO: Is the code in this "GET" case necessary?
-        //It reads, strips, then re-adds all GET data; this may be a no-op.
-        $url = substr($url, 0, strrpos($url, "?"));
-        $url .= "?" . implode("&", $getData);
-      }
-    break;
     case "POST":
       curl_setopt($ch, CURLOPT_POST, true);
       //For some reason, $HTTP_RAW_POST_DATA isn't working as documented at
@@ -153,15 +162,42 @@ function proxifyCSS($css, $baseURL) {
     $css);
 }
 
+//Extract and sanitize the requested URL.
 $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
-if (empty($url)) die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false;\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
-if (strpos($url, "//") === 0) $url = "http:" . $url; //Assume that any supplied URLs starting with // are HTTP URLs.
-if (!preg_match("@^.*://@", $url)) $url = "http://" . $url; //Assume that any supplied URLs without a scheme are HTTP URLs.
+if (empty($url)) {
+    die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false;\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
+} else if (strpos($url, "//") === 0) {
+    //Assume that any supplied URLs starting with // are HTTP URLs.
+    $url = "http:" . $url;
+} else if (strpos($url, ":/") !== strpos($url, "://")) {
+    //Work around the fact that some web servers (e.g. IIS 8.5) change double slashes appearing in the URL to a single slash.
+    //See https://github.com/joshdick/miniProxy/pull/14
+    $pos = strpos($url, ":/");
+    $url = substr_replace($url, "://", $pos, strlen(":/"));
+} else if (!preg_match("@^.*://@", $url)) {
+    //Assume that any supplied URLs without a scheme are HTTP URLs.
+    $url = "http://" . $url;
+}
+
+//Validate the requested URL against the whitelist.
+$urlIsValid = count($whitelistPatterns) === 0;
+foreach ($whitelistPatterns as $pattern) {
+    if (preg_match($pattern, $url)) {
+      $urlIsValid = true;
+      break;
+    }
+}
+if (!$urlIsValid) {
+    die("Error: The requested URL was disallowed by the server administrator.");
+}
 
 $response = makeRequest($url);
 $rawResponseHeaders = $response["headers"];
 $responseBody = $response["body"];
 $responseInfo = $response["responseInfo"];
+
+//A regex that indicates which server response headers should be stripped out of the proxified response.
+$header_blacklist_pattern = "/^Content-Length|^Transfer-Encoding|^Content-Encoding.*gzip/i";
 
 //cURL can make multiple requests internally (while following 302 redirects), and reports
 //headers for every request it makes. Only proxy the last set of received response headers,
@@ -170,9 +206,10 @@ $responseHeaderBlocks = array_filter(explode("\r\n\r\n", $rawResponseHeaders));
 $lastHeaderBlock = end($responseHeaderBlocks);
 $headerLines = explode("\r\n", $lastHeaderBlock);
 foreach ($headerLines as $header) {
-  if (stripos($header, "Content-Length") === false && stripos($header, "Transfer-Encoding") === false) {
-    header($header);
-  }
+    $header = trim($header);
+    if (!preg_match($header_blacklist_pattern, $header)) {
+      header($header);
+    }
 }
 
 $contentType = "";
