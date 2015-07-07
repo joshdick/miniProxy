@@ -13,9 +13,9 @@ miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html
 //You can optionally use the "getHostnamePattern()" helper function to build a regular expression that
 //matches all URLs for a given hostname.
 $whitelistPatterns = array(
-    //Usage example: To support any URL at example.net, including sub-domains, uncomment the
-    //line below (which is equivalent to [ @^https?://([a-z0-9-]+\.)*example\.net@i ]):
-    //getHostnamePattern("example.net")
+  //Usage example: To support any URL at example.net, including sub-domains, uncomment the
+  //line below (which is equivalent to [ @^https?://([a-z0-9-]+\.)*example\.net@i ]):
+  //getHostnamePattern("example.net")
 );
 
 /****************************** END CONFIGURATION ******************************/
@@ -27,19 +27,17 @@ if (!function_exists("curl_init")) die ("This proxy requires PHP's cURL extensio
 //Helper function for use inside $whitelistPatterns.
 //Returns a regex that matches all HTTP[S] URLs for a given hostname.
 function getHostnamePattern($hostname) {
-    $escapedHostname = str_replace(".", "\.", $hostname);
-    return "@^https?://([a-z0-9-]+\.)*" . $escapedHostname . "@i";
+  $escapedHostname = str_replace(".", "\.", $hostname);
+  return "@^https?://([a-z0-9-]+\.)*" . $escapedHostname . "@i";
 }
 
-//Adapted from http://www.php.net/manual/en/function.getallheaders.php#99814
 if (!function_exists("getallheaders")) {
+  //Adapted from http://www.php.net/manual/en/function.getallheaders.php#99814
   function getallheaders() {
     $result = array();
     foreach($_SERVER as $key => $value) {
       if (substr($key, 0, 5) == "HTTP_") {
-        $key = str_replace(" ", "-", ucwords(strtolower(str_replace("_", " ", substr($key, 5)))));
-        $result[$key] = $value;
-      } else {
+        $key = str_replace(" ", "-", str_replace("_", " ", substr($key, 5)));
         $result[$key] = $value;
       }
     }
@@ -60,16 +58,15 @@ function makeRequest($url) {
   $ch = curl_init();
   curl_setopt($ch, CURLOPT_USERAGENT, $user_agent);
 
-  //Proxy the browser's request headers.
-  $browserRequestHeaders = getallheaders();
-  //(...but let cURL set some of these headers on its own.)
-  //TODO: The unset()s below assume that browsers' request headers
-  //will use casing (capitalizations) that appear within them.
-  unset($browserRequestHeaders["Host"]);
-  unset($browserRequestHeaders["Content-Length"]);
+  //Get ready to proxy the browser's request headers.
+  //Change their names to uppercase so we'll have a reliable way to reference them below.
+  $browserRequestHeaders = array_change_key_case(getallheaders(), CASE_UPPER);
+  //Let cURL set the following headers on its own.
+  unset($browserRequestHeaders["HOST"]);
+  unset($browserRequestHeaders["CONTENT-LENGTH"]);
   //Throw away the browser's Accept-Encoding header if any;
   //let cURL make the request using gzip if possible.
-  unset($browserRequestHeaders["Accept-Encoding"]);
+  unset($browserRequestHeaders["ACCEPT-ENCODING"]);
   curl_setopt($ch, CURLOPT_ENCODING, "");
   //Transform the associative array from getallheaders() into an
   //indexed array of header strings to be passed to cURL.
@@ -182,13 +179,13 @@ if (empty($url)) {
 //Validate the requested URL against the whitelist.
 $urlIsValid = count($whitelistPatterns) === 0;
 foreach ($whitelistPatterns as $pattern) {
-    if (preg_match($pattern, $url)) {
-      $urlIsValid = true;
-      break;
-    }
+  if (preg_match($pattern, $url)) {
+    $urlIsValid = true;
+    break;
+  }
 }
 if (!$urlIsValid) {
-    die("Error: The requested URL was disallowed by the server administrator.");
+  die("Error: The requested URL was disallowed by the server administrator.");
 }
 
 $response = makeRequest($url);
@@ -206,10 +203,10 @@ $responseHeaderBlocks = array_filter(explode("\r\n\r\n", $rawResponseHeaders));
 $lastHeaderBlock = end($responseHeaderBlocks);
 $headerLines = explode("\r\n", $lastHeaderBlock);
 foreach ($headerLines as $header) {
-    $header = trim($header);
-    if (!preg_match($header_blacklist_pattern, $header)) {
-      header($header);
-    }
+  $header = trim($header);
+  if (!preg_match($header_blacklist_pattern, $header)) {
+    header($header);
+  }
 }
 
 $contentType = "";
