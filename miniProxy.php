@@ -13,9 +13,9 @@ miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html
 //You can optionally use the "getHostnamePattern()" helper function to build a regular expression that
 //matches all URLs for a given hostname.
 $whitelistPatterns = array(
-    //Usage example: To support Google URLs, including sub-domains, uncomment the
-    //line below (which is equivalent to [ @^https?://([a-z0-9-]+\.)*google\.com@i ]):
-    //getHostnamePattern("google.com")
+    //Usage example: To support any URL at example.net, including sub-domains, uncomment the
+    //line below (which is equivalent to [ @^https?://([a-z0-9-]+\.)*example\.net@i ]):
+    //getHostnamePattern("example.net")
 );
 
 /****************************** END CONFIGURATION ******************************/
@@ -165,7 +165,7 @@ function proxifyCSS($css, $baseURL) {
 //Extract and sanitize the requested URL.
 $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
 if (empty($url)) {
-    die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://google.com/\">" . PROXY_PREFIX . "http://google.com/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false;\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
+    die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://example.net/\">" . PROXY_PREFIX . "http://example.net/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false;\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
 } else if (strpos($url, "//") === 0) {
     //Assume that any supplied URLs starting with // are HTTP URLs.
     $url = "http:" . $url;
