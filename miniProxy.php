@@ -31,13 +31,29 @@ function getHostnamePattern($hostname) {
   return "@^https?://([a-z0-9-]+\.)*" . $escapedHostname . "@i";
 }
 
+//Helper function used to removes/unset keys from an associative array using case insensitive matching
+function removeKeys(&$assoc, $keys2remove) {
+  $keys = array_keys($assoc);
+  $map = array();
+  foreach ($keys as $key) {
+     $map[strtolower($key)] = $key;
+  }
+
+  foreach ($keys2remove as $key) {
+    $key = strtolower($key);
+    if (isset($map[$key])) {
+       unset($assoc[$map[$key]]);
+    }
+  }
+}
+
 if (!function_exists("getallheaders")) {
   //Adapted from http://www.php.net/manual/en/function.getallheaders.php#99814
   function getallheaders() {
     $result = array();
     foreach($_SERVER as $key => $value) {
       if (substr($key, 0, 5) == "HTTP_") {
-        $key = str_replace(" ", "-", str_replace("_", " ", substr($key, 5)));
+        $key = str_replace(" ", "-", ucwords(strtolower(str_replace("_", " ", substr($key, 5)))));
         $result[$key] = $value;
       }
     }
@@ -58,15 +74,16 @@ function makeRequest($url) {
   $ch = curl_init();
   curl_setopt($ch, CURLOPT_USERAGENT, $user_agent);
 
-  //Get ready to proxy the browser's request headers.
-  //Change their names to uppercase so we'll have a reliable way to reference them below.
-  $browserRequestHeaders = array_change_key_case(getallheaders(), CASE_UPPER);
-  //Let cURL set the following headers on its own.
-  unset($browserRequestHeaders["HOST"]);
-  unset($browserRequestHeaders["CONTENT-LENGTH"]);
-  //Throw away the browser's Accept-Encoding header if any;
-  //let cURL make the request using gzip if possible.
-  unset($browserRequestHeaders["ACCEPT-ENCODING"]);
+  //Get ready to proxy the browser's request headers...
+  $browserRequestHeaders = getallheaders();
+
+  //...but let cURL set some headers on its own.
+  removeKeys($browserRequestHeaders, array(
+    "Host",
+    "Content-Length",
+    "Accept-Encoding" //Throw away the browser's Accept-Encoding header if any and let cURL make the request using gzip if possible.
+  ));
+
   curl_setopt($ch, CURLOPT_ENCODING, "");
   //Transform the associative array from getallheaders() into an
   //indexed array of header strings to be passed to cURL.
