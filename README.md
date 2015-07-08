@@ -30,8 +30,9 @@ miniProxy has several known limitations. Some of them may be fixed in future rel
 
 ## Contact and Feedback
 
-If you'd like to contribute to miniProxy or file a bug or feature request, please visit [its page on GitHub][1].
+If you'd like to contribute to miniProxy or file a bug or feature request, please visit [its GitHub page][4].
 
   [1]: http://joshdick.github.io/miniProxy
   [2]: http://www.gnu.org/licenses/gpl.html
   [3]: http://pageforward.sf.net
+  [4]: https://github.com/joshdick/miniProxy
