@@ -97,14 +97,16 @@ strong {
   font-weight:700;
 }
 
-ul li {
-  list-style: inside;
+ul {
+  list-style-position: inside;
+  list-style: disc;
   padding-left: 25px;
 }
 
-ol li {
-  list-style: decimal inside;
-  padding-left: 20px;
+ol {
+  list-style-position: inside;
+  list-style: decimal;
+  padding-left: 25px;
 }
 
 blockquote {
@@ -149,6 +151,14 @@ img {
   border: 1px solid #ccc;
 }
 
+p img {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+  text-align: center;
+  border: none;
+}
 
 /* Code blocks */
 
