@@ -191,9 +191,14 @@ if (empty($url)) {
     //See https://github.com/joshdick/miniProxy/pull/14
     $pos = strpos($url, ":/");
     $url = substr_replace($url, "://", $pos, strlen(":/"));
-} else if (!preg_match("@^.*://@", $url)) {
+}
+
+$scheme = parse_url($url, PHP_URL_SCHEME);
+if (empty($scheme)) {
     //Assume that any supplied URLs without a scheme are HTTP URLs.
     $url = "http://" . $url;
+} else if (!preg_match("/^https?$/i", $scheme)) {
+    die('Error: Detected a "' . $scheme . '" URL. miniProxy exclusively supports http[s] URLs.');
 }
 
 //Validate the requested URL against the whitelist.
