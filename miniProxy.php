@@ -105,11 +105,11 @@ function makeRequest($url) {
       //but the php://input method works. This is likely to be flaky
       //across different server environments.
       //More info here: http://stackoverflow.com/questions/8899239/http-raw-post-data-not-being-populated-after-upgrade-to-php-5-3
-      curl_setopt($ch, CURLOPT_POSTFIELDS, file_get_contents("php://input"));
+      curl_setopt($ch, CURLOPT_POSTFIELDS, file_get_contents('php://input'));
     break;
     case "PUT":
       curl_setopt($ch, CURLOPT_PUT, true);
-      curl_setopt($ch, CURLOPT_INFILE, fopen("php://input"));
+      curl_setopt($ch, CURLOPT_INFILE, fopen('php://input', 'r'));
     break;
   }
 
