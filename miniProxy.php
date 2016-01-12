@@ -88,6 +88,10 @@ function makeRequest($url) {
   ));
 
   curl_setopt($ch, CURLOPT_ENCODING, "");
+  $urlcomponents = parse_url($url);
+  if (!empty($urlcomponents['user']) && !empty($urlcomponents['pass']) ) {
+	  curl_setopt($ch, CURLOPT_USERPWD, $urlcomponents['user'] . ":" . $urlcomponents['pass']); 
+  }
   //Transform the associative array from getallheaders() into an
   //indexed array of header strings to be passed to cURL.
   $curlRequestHeaders = array();
