@@ -231,6 +231,8 @@ foreach ($headerLines as $header) {
     header($header);
   }
 }
+//Prevent robots from indexing proxified pages
+header('X-Robots-Tag: noindex, nofollow');
 
 if ($forceCORS) {
   //This logic is based on code found at: http://stackoverflow.com/a/9866124/278810
