@@ -154,7 +154,7 @@ function rel2abs($rel, $base) {
     }
     $auth .= "@";
   }
-  $abs = "$auth$host$path$port/$rel"; //Dirty absolute URL
+  $abs = "$auth$host$port$path/$rel"; //Dirty absolute URL
   for ($n = 1; $n > 0; $abs = preg_replace(array("#(/\.?/)#", "#/(?!\.\.)[^/]+/\.\./#"), "/", $abs, -1, $n)) {} //Replace '//' or '/./' or '/foo/../' with '/'
   return $scheme . "://" . $abs; //Absolute URL is ready.
 }
