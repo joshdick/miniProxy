@@ -179,6 +179,37 @@ function proxifyCSS($css, $baseURL) {
     $css);
 }
 
+// get remote file headers
+// KJR 2/22/2013
+function getHeaders($uri) {
+	$uri = urldecode($uri);
+	$uri = str_replace(' ', '%20', $uri);
+	$userAgent = 'Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; AS; rv:11.0) like Gecko';
+	$options = array(
+		CURLOPT_RETURNTRANSFER => true,     // return string instead of outputting directly to browser
+		CURLOPT_HEADER         => true,    // return headers
+		CURLOPT_FOLLOWLOCATION => true,     // follow redirects
+		CURLOPT_ENCODING       => "",       // empty string means handle all encodings
+		CURLOPT_USERAGENT      => $userAgent, // who am i
+		CURLOPT_AUTOREFERER    => true,     // set referer on redirect
+		CURLOPT_CONNECTTIMEOUT => 10,      // timeout on connect
+		CURLOPT_TIMEOUT        => 10,      // timeout on response
+		CURLOPT_MAXREDIRS      => 10,       // stop after 10 redirects
+		CURLOPT_NOBODY         => true,     // only get the headers
+		CURLOPT_FILETIME       => true     //retrieve the file modification date
+	);
+
+	$ch      = curl_init( $uri );
+	curl_setopt_array( $ch, $options );
+	$content = curl_exec( $ch );
+	$err     = curl_errno( $ch );
+	$errmsg  = curl_error( $ch );
+	$headers  = curl_getinfo( $ch );
+	curl_close( $ch );
+
+	return $headers;
+}
+
 //Extract and sanitize the requested URL.
 $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
 if (empty($url)) {
@@ -209,6 +240,15 @@ foreach ($whitelistPatterns as $pattern) {
 }
 if (!$urlIsValid) {
   die("Error: The requested URL was disallowed by the server administrator.");
+}
+
+//KJR get final url if redirected
+$headers = getHeaders($url);
+$finalUrl = $headers['url'];
+if ($url !== $finalUrl) {
+	//redirect the script and try again
+	header('Location: '.$_SERVER['SCRIPT_NAME'].'/'.$finalUrl);
+	exit;
 }
 
 $response = makeRequest($url);
