@@ -237,10 +237,18 @@ $rawResponseHeaders = $response["headers"];
 $responseBody = $response["body"];
 $responseInfo = $response["responseInfo"];
 
+//If CURLOPT_FOLLOWLOCATION landed the proxy at a diferent URL than
+//what was requested, explicitly redirect the proxy there.
+$responseURL = $responseInfo["url"];
+if ($responseURL !== $url) {
+  header("Location: " . PROXY_PREFIX . $responseURL, true);
+  exit(0);
+}
+
 //A regex that indicates which server response headers should be stripped out of the proxified response.
 $header_blacklist_pattern = "/^Content-Length|^Transfer-Encoding|^Content-Encoding.*gzip/i";
 
-//cURL can make multiple requests internally (while following 302 redirects), and reports
+//cURL can make multiple requests internally (for example, if CURLOPT_FOLLOWLOCATION is enabled), and reports
 //headers for every request it makes. Only proxy the last set of received response headers,
 //corresponding to the final request made by cURL for any given call to makeRequest().
 $responseHeaderBlocks = array_filter(explode("\r\n\r\n", $rawResponseHeaders));
