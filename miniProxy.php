@@ -115,9 +115,9 @@ function makeRequest($url) {
 
   //Other cURL options.
   curl_setopt($ch, CURLOPT_HEADER, true);
-  curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt ($ch, CURLOPT_FAILONERROR, true);
+  curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false); //Explicitly don't follow redirects; the proxy will handle them.
 
   //Set the request URL.
   curl_setopt($ch, CURLOPT_URL, $url);
@@ -219,12 +219,33 @@ $responseInfo = $response["responseInfo"];
 //A regex that indicates which server response headers should be stripped out of the proxified response.
 $header_blacklist_pattern = "/^Content-Length|^Transfer-Encoding|^Content-Encoding.*gzip/i";
 
-//cURL can make multiple requests internally (while following 302 redirects), and reports
+//cURL can make multiple requests internally (for example, if CURLOPT_FOLLOWLOCATION is enabled), and reports
 //headers for every request it makes. Only proxy the last set of received response headers,
 //corresponding to the final request made by cURL for any given call to makeRequest().
 $responseHeaderBlocks = array_filter(explode("\r\n\r\n", $rawResponseHeaders));
 $lastHeaderBlock = end($responseHeaderBlocks);
 $headerLines = explode("\r\n", $lastHeaderBlock);
+
+//Get the last Location header value, if any (the response could contain more than one.)
+
+//Find all headers starting with "Location".
+$locationHeaderLines = array_values(array_filter($headerLines, function($line) {
+  return strncasecmp("Location", $line, 8) === 0;
+}));
+//Get the values after the "Location:" prefix.
+$locationHeaderValues = array_map(function($locationHeaderLine) {
+  $parsedHeader = array_map(trim, explode(":", $locationHeaderLine, 2));
+  return $parsedHeader[1]; //The location itself
+}, $locationHeaderLines);
+$lastLocationHeaderValue = end($locationHeaderValues);
+
+//If we found [any] last Location header value and the response was an HTTP 3XX response,
+//explicitly follow the location header, redirecting back through the proxy.
+if ($lastLocationHeaderValue && strncasecmp("3", $responseInfo["http_code"], 1) === 0) {
+  header("Location: " . PROXY_PREFIX . $lastLocationHeaderValue, true);
+  exit(0);
+}
+
 foreach ($headerLines as $header) {
   $header = trim($header);
   if (!preg_match($header_blacklist_pattern, $header)) {
