@@ -20,6 +20,7 @@ $whitelistPatterns = array(
 
 //To enable CORS (cross-origin resource sharing) for proxied sites, set $forceCORS to true.
 $forceCORS = false;
+$forceSSL = true;
 
 /****************************** END CONFIGURATION ******************************/
 
@@ -64,12 +65,13 @@ if (!function_exists("getallheaders")) {
   }
 }
 
-define("PROXY_PREFIX", "http" . (isset($_SERVER['HTTPS']) ? "s" : "") . "://" . $_SERVER["SERVER_NAME"] . ($_SERVER["SERVER_PORT"] != 80 ? ":" . $_SERVER["SERVER_PORT"] : "") . $_SERVER["SCRIPT_NAME"] . "/");
+define("PROXY_PREFIX", "http" . ((isset($_SERVER['HTTPS'])||$forceSSL) ? "s" : "") . "://" . $_SERVER["SERVER_NAME"] . ($_SERVER["SERVER_PORT"] != 80 ? ":" . $_SERVER["SERVER_PORT"] : "") . $_SERVER["SCRIPT_NAME"] . "/");
 
 //Makes an HTTP request via cURL, using request data that was passed directly to this script.
 function makeRequest($url) {
 
   //Tell cURL to make the request using the brower's user-agent if there is one, or a fallback user-agent otherwise.
+  $urlcomponents = ( parse_url($url));
   $user_agent = $_SERVER["HTTP_USER_AGENT"];
   if (empty($user_agent)) {
     $user_agent = "Mozilla/5.0 (compatible; miniProxy)";
@@ -84,11 +86,11 @@ function makeRequest($url) {
   removeKeys($browserRequestHeaders, array(
     "Host",
     "Content-Length",
+    "Cookie",
     "Accept-Encoding" //Throw away the browser's Accept-Encoding header if any and let cURL make the request using gzip if possible.
   ));
 
   curl_setopt($ch, CURLOPT_ENCODING, "");
-  $urlcomponents = parse_url($url);
   if (!empty($urlcomponents['user']) && !empty($urlcomponents['pass']) ) {
 	  curl_setopt($ch, CURLOPT_USERPWD, $urlcomponents['user'] . ":" . $urlcomponents['pass']); 
   }
@@ -96,13 +98,22 @@ function makeRequest($url) {
   //indexed array of header strings to be passed to cURL.
   $curlRequestHeaders = array();
   foreach ($browserRequestHeaders as $name => $value) {
-    $curlRequestHeaders[] = $name . ": " . $value;
+    if ($name == "Referer") {
+      $value = substr($value, strrpos($value, "http")); 
+      if (strpos($value, "http://") < 0)
+        $value = str_replace("http:/", "http://", $value);
+    } 
+    if ($name != "X-Forwarded-For") 
+        $curlRequestHeaders[] = $name . ": " . $value;
   }
+//  die();
   curl_setopt($ch, CURLOPT_HTTPHEADER, $curlRequestHeaders);
-
+  curl_setopt($ch, CURLINFO_HEADER_OUT, true); 
+  $esPost = False;
   //Proxy any received GET/POST/PUT data.
   switch ($_SERVER["REQUEST_METHOD"]) {
     case "POST":
+      $esPost = True;
       curl_setopt($ch, CURLOPT_POST, true);
       //For some reason, $HTTP_RAW_POST_DATA isn't working as documented at
       //http://php.net/manual/en/reserved.variables.httprawpostdata.php
@@ -121,21 +132,42 @@ function makeRequest($url) {
   curl_setopt($ch, CURLOPT_HEADER, true);
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt ($ch, CURLOPT_FAILONERROR, true);
+  #curl_setopt ($ch, CURLOPT_FAILONERROR, true);
+  curl_setopt($ch, CURLOPT_COOKIEFILE, realpath("cookies.txt") );
+  curl_setopt($ch, CURLOPT_COOKIEJAR, realpath("cookies.txt") );
 
   //Set the request URL.
   curl_setopt($ch, CURLOPT_URL, $url);
 
   //Make the request.
   $response = curl_exec($ch);
+  //var_dump($url);
+  
+  //curl_setopt($ch, CURLOPT_VERBOSE, 1);
+ 
+  
   $responseInfo = curl_getinfo($ch);
+  
+  if ($esPost || True ) { 
+//  die();
+  // header("Content-Type: text/plain");
+ // file_put_contents("logs.txt", "metodo:" . json_encode($_POST) . PHP_EOL . json_encode(curl_getinfo($ch)) . PHP_EOL,  FILE_APPEND);
+  
+  }
+  // die();
+
   $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
   curl_close($ch);
+  //die();
 
   //Setting CURLOPT_HEADER to true above forces the response headers and body
   //to be output together--separate them.
   $responseHeaders = substr($response, 0, $headerSize);
   $responseBody = substr($response, $headerSize);
+  $responseBody = str_replace( "', '/console", "', '".PROXY_PREFIX.rel2abs("/console", $url), $responseBody  );
+  
+ // file_put_contents("respuesta.txt", $response);
+//  die("here");
 
   return array("headers" => $responseHeaders, "body" => $responseBody, "responseInfo" => $responseInfo);
 }
@@ -158,7 +190,7 @@ function rel2abs($rel, $base) {
     }
     $auth .= "@";
   }
-  $abs = "$auth$host$path$port/$rel"; //Dirty absolute URL
+  $abs = "$auth$host$port$path/$rel"; //Dirty absolute URL
   for ($n = 1; $n > 0; $abs = preg_replace(array("#(/\.?/)#", "#/(?!\.\.)[^/]+/\.\./#"), "/", $abs, -1, $n)) {} //Replace '//' or '/./' or '/foo/../' with '/'
   return $scheme . "://" . $abs; //Absolute URL is ready.
 }
@@ -235,6 +267,8 @@ foreach ($headerLines as $header) {
     header($header);
   }
 }
+//Prevent robots from indexing proxified pages
+header('X-Robots-Tag: noindex, nofollow');
 
 if ($forceCORS) {
   //This logic is based on code found at: http://stackoverflow.com/a/9866124/278810
@@ -277,7 +311,17 @@ if (stripos($contentType, "text/html") !== false) {
   $doc = new DomDocument();
   @$doc->loadHTML($responseBody);
   $xpath = new DOMXPath($doc);
-
+  //Rewrite meta refresh tags
+  foreach($xpath->query('//meta') as $metas) {
+    $http_equiv = $metas->getAttribute("http-equiv");
+    $content = $metas->getAttribute("content");
+    //$url = $content.split(";"); //? $url : rel2abs($action, $url);
+    $cont = preg_split("/=/", $content);
+    $cont[1] =  rel2abs($cont[1], $url);
+    $cont = $cont[0]."=".PROXY_PREFIX .$cont[1];
+    //Rewrite the form action to point back at the proxy.
+    $metas->setAttribute("content", $cont);
+  }
   //Rewrite forms so that their actions point back to the proxy.
   foreach($xpath->query('//form') as $form) {
     $method = $form->getAttribute("method");
@@ -302,6 +346,8 @@ if (stripos($contentType, "text/html") !== false) {
     foreach($xpath->query('//*[@' . $attrName . ']') as $element) { //For every element with the given attribute...
       $attrContent = $element->getAttribute($attrName);
       if ($attrName == "href" && (stripos($attrContent, "javascript:") === 0 || stripos($attrContent, "mailto:") === 0)) continue;
+      if (stripos($attrContent, "about:blank") === 0) continue;
+
       $attrContent = rel2abs($attrContent, $url);
       $attrContent = PROXY_PREFIX . $attrContent;
       $element->setAttribute($attrName, $attrContent);
@@ -389,9 +435,7 @@ if (stripos($contentType, "text/html") !== false) {
               }
               return proxied.apply(this, [].slice.call(arguments));
           };
-
         }
-
       })();'
     );
     $scriptElem->setAttribute("type", "text/javascript");
@@ -400,7 +444,11 @@ if (stripos($contentType, "text/html") !== false) {
 
   }
 
-  echo "<!-- Proxified page constructed by miniProxy -->\n" . $doc->saveHTML();
+//  echo "<!-- Proxified page constructed by miniProxy -->\n" . 
+    $html = $doc->saveHTML();
+    
+    
+    echo $html;
 } else if (stripos($contentType, "text/css") !== false) { //This is CSS, so proxify url() references.
   echo proxifyCSS($responseBody, $url);
 } else { //This isn't a web page or CSS, so serve unmodified through the proxy with the correct headers (images, JavaScript, etc.)
