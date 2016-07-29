@@ -25,7 +25,11 @@ $forceCORS = false;
 
 ob_start("ob_gzhandler");
 
-if (!function_exists("curl_init")) die ("This proxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
+if (version_compare(PHP_VERSION, '5.4.7', '<')) {
+    die ("miniProxy requires PHP version 5.4.7 or later.");
+}
+
+if (!function_exists("curl_init")) die ("miniProxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
 
 //Helper function for use inside $whitelistPatterns.
 //Returns a regex that matches all HTTP[S] URLs for a given hostname.
