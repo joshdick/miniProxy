@@ -188,6 +188,18 @@ function proxifyCSS($css, $baseURL) {
     $css);
 }
 
+//Proxify "srcset" attributes (normally associated with "img" tags.)
+function proxifySrcset($srcset, $baseURL) {
+  $sources = array_map("trim", explode(",", $srcset)); // Split all contents by comma and trim each value
+  $proxifiedSources = array_map(function($source) use ($baseURL) {
+    $components = array_map("trim", str_split($source, strrpos($source, " "))); // Split by last space and trim
+    $components[0] = PROXY_PREFIX . rel2abs(ltrim($components[0], "/"), $baseURL); // First component of the split source string should be an image URL; proxify it
+    return implode($components, " "); // Recombine the components into a single source
+  }, $sources);
+  $proxifiedSrcset = implode(", ", $proxifiedSources); // Recombine the sources into a single "srcset"
+  return $proxifiedSrcset;
+}
+
 //Extract and sanitize the requested URL.
 $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
 if (empty($url)) {
@@ -302,6 +314,10 @@ if (stripos($contentType, "text/html") !== false) {
   //Proxify tags with a "style" attribute.
   foreach ($xpath->query("//*[@style]") as $element) {
     $element->setAttribute("style", proxifyCSS($element->getAttribute("style"), $url));
+  }
+  //Proxify "srcset" attributes in "img" tags.
+  foreach ($xpath->query("//img[@srcset]") as $element) {
+    $element->setAttribute("srcset", proxifySrcset($element->getAttribute("srcset"), $url));
   }
   //Proxify any of these attributes appearing in any tag.
   $proxifyAttributes = array("href", "src");
