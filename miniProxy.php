@@ -188,7 +188,7 @@ function proxifyCSS($css, $baseURL) {
     $css);
 }
 
-//Proxify "srcset" attributes (normally associated with "img" tags.)
+//Proxify "srcset" attributes (normally associated with <img> tags.)
 function proxifySrcset($srcset, $baseURL) {
   $sources = array_map("trim", explode(",", $srcset)); // Split all contents by comma and trim each value
   $proxifiedSources = array_map(function($source) use ($baseURL) {
@@ -307,7 +307,19 @@ if (stripos($contentType, "text/html") !== false) {
     //Rewrite the form action to point back at the proxy.
     $form->setAttribute("action", PROXY_PREFIX . $action);
   }
-  //Profixy <style> tags.
+  //Proxify <meta> tags with an 'http-equiv="refresh"' attribute.
+	foreach ($xpath->query("//meta[@http-equiv]") as $element) {
+		if (strcasecmp($element->getAttribute("http-equiv"), "refresh") === 0) {
+			$content = $element->getAttribute("content");
+			if (!empty($content)) {
+				$splitContent = preg_split("/url=/i", $content);
+				if (isset($splitContent[1])) {
+					$element->setAttribute("content", $splitContent[0] . PROXY_PREFIX . rel2abs($splitContent[1], $url));
+				}
+			}
+		}
+	}
+	//Profixy <style> tags.
   foreach($xpath->query("//style") as $style) {
     $style->nodeValue = proxifyCSS($style->nodeValue, $url);
   }
@@ -315,7 +327,7 @@ if (stripos($contentType, "text/html") !== false) {
   foreach ($xpath->query("//*[@style]") as $element) {
     $element->setAttribute("style", proxifyCSS($element->getAttribute("style"), $url));
   }
-  //Proxify "srcset" attributes in "img" tags.
+  //Proxify "srcset" attributes in <img> tags.
   foreach ($xpath->query("//img[@srcset]") as $element) {
     $element->setAttribute("srcset", proxifySrcset($element->getAttribute("srcset"), $url));
   }
