@@ -368,7 +368,7 @@ if (stripos($contentType, "text/html") !== false) {
   foreach($proxifyAttributes as $attrName) {
     foreach($xpath->query("//*[@" . $attrName . "]") as $element) { //For every element with the given attribute...
       $attrContent = $element->getAttribute($attrName);
-      if ($attrName == "href" && preg_match("/^(javascript|magnet|mailto):/i", $attrContent)) continue;
+      if ($attrName == "href" && preg_match("/^(about|javascript|magnet|mailto):/i", $attrContent)) continue;
       $attrContent = rel2abs($attrContent, $url);
       $attrContent = PROXY_PREFIX . $attrContent;
       $element->setAttribute($attrName, $attrContent);
