@@ -69,7 +69,7 @@ if (!function_exists("getallheaders")) {
 }
 
 $prefixPort = $_SERVER["SERVER_PORT"] != 80 ? ":" . $_SERVER["SERVER_PORT"] : "";
-// Use HTTP_HOST to support client-configured DNS (instead of SERVER_NAME), but remove the port if one is present
+//Use HTTP_HOST to support client-configured DNS (instead of SERVER_NAME), but remove the port if one is present
 $prefixHost = $_SERVER["HTTP_HOST"];
 $prefixHost = strpos($prefixHost, ":") ? implode(":", explode(":", $_SERVER["HTTP_HOST"], -1)) : $prefixHost;
 
@@ -114,7 +114,13 @@ function makeRequest($url) {
       //but the php://input method works. This is likely to be flaky
       //across different server environments.
       //More info here: http://stackoverflow.com/questions/8899239/http-raw-post-data-not-being-populated-after-upgrade-to-php-5-3
-      curl_setopt($ch, CURLOPT_POSTFIELDS, file_get_contents("php://input"));
+      //If the miniProxyFormAction field appears in the POST data, remove it so the destination server doesn't receive it.
+      $postData = Array();
+      parse_str(file_get_contents("php://input"), $postData);
+      if (isset($postData["miniProxyFormAction"])) {
+        unset($postData["miniProxyFormAction"]);
+      }
+      curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
     break;
     case "PUT":
       curl_setopt($ch, CURLOPT_PUT, true);
@@ -190,18 +196,32 @@ function proxifyCSS($css, $baseURL) {
 
 //Proxify "srcset" attributes (normally associated with <img> tags.)
 function proxifySrcset($srcset, $baseURL) {
-  $sources = array_map("trim", explode(",", $srcset)); // Split all contents by comma and trim each value
+  $sources = array_map("trim", explode(",", $srcset)); //Split all contents by comma and trim each value
   $proxifiedSources = array_map(function($source) use ($baseURL) {
-    $components = array_map("trim", str_split($source, strrpos($source, " "))); // Split by last space and trim
-    $components[0] = PROXY_PREFIX . rel2abs(ltrim($components[0], "/"), $baseURL); // First component of the split source string should be an image URL; proxify it
-    return implode($components, " "); // Recombine the components into a single source
+    $components = array_map("trim", str_split($source, strrpos($source, " "))); //Split by last space and trim
+    $components[0] = PROXY_PREFIX . rel2abs(ltrim($components[0], "/"), $baseURL); //First component of the split source string should be an image URL; proxify it
+    return implode($components, " "); //Recombine the components into a single source
   }, $sources);
-  $proxifiedSrcset = implode(", ", $proxifiedSources); // Recombine the sources into a single "srcset"
+  $proxifiedSrcset = implode(", ", $proxifiedSources); //Recombine the sources into a single "srcset"
   return $proxifiedSrcset;
 }
 
-//Extract and sanitize the requested URL.
-$url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
+//Extract and sanitize the requested URL, handling cases where forms have been rewritten to point to the proxy.
+if (isset($_POST["miniProxyFormAction"])) {
+  $url = $_POST["miniProxyFormAction"];
+  unset($_POST["miniProxyFormAction"]);
+} else {
+  $queryParams = Array();
+  parse_str($_SERVER["QUERY_STRING"], $queryParams);
+  //If the miniProxyFormAction field appears in the query string, make $url start with its value, and rebuild the the query string without it.
+  if (isset($queryParams["miniProxyFormAction"])) {
+    $formAction = $queryParams["miniProxyFormAction"];
+    unset($queryParams["miniProxyFormAction"]);
+    $url = $formAction . '?' . http_build_query($queryParams);
+  } else {
+    $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
+  }
+}
 if (empty($url)) {
     die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . "http://example.net/\">" . PROXY_PREFIX . "http://example.net/</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false;\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
 } else if (strpos($url, ":/") !== strpos($url, "://")) {
@@ -313,21 +333,25 @@ if (stripos($contentType, "text/html") !== false) {
     //Otherwise, change an existing action to an absolute version.
     $action = empty($action) ? $url : rel2abs($action, $url);
     //Rewrite the form action to point back at the proxy.
-    $form->setAttribute("action", PROXY_PREFIX . $action);
+    $form->setAttribute("action", rtrim(PROXY_PREFIX, "?"));
+    //Add a hidden form field that the proxy can later use to retreive the original form action.
+    $actionInput = $doc->createDocumentFragment();
+    $actionInput->appendXML('<input type="hidden" name="miniProxyFormAction" value="' . $action . '" />');
+    $form->appendChild($actionInput);
   }
   //Proxify <meta> tags with an 'http-equiv="refresh"' attribute.
-	foreach ($xpath->query("//meta[@http-equiv]") as $element) {
-		if (strcasecmp($element->getAttribute("http-equiv"), "refresh") === 0) {
-			$content = $element->getAttribute("content");
-			if (!empty($content)) {
-				$splitContent = preg_split("/url=/i", $content);
-				if (isset($splitContent[1])) {
-					$element->setAttribute("content", $splitContent[0] . PROXY_PREFIX . rel2abs($splitContent[1], $url));
-				}
-			}
-		}
-	}
-	//Profixy <style> tags.
+  foreach ($xpath->query("//meta[@http-equiv]") as $element) {
+    if (strcasecmp($element->getAttribute("http-equiv"), "refresh") === 0) {
+      $content = $element->getAttribute("content");
+      if (!empty($content)) {
+        $splitContent = preg_split("/url=/i", $content);
+        if (isset($splitContent[1])) {
+          $element->setAttribute("content", $splitContent[0] . PROXY_PREFIX . rel2abs($splitContent[1], $url));
+        }
+      }
+    }
+  }
+  //Profixy <style> tags.
   foreach($xpath->query("//style") as $style) {
     $style->nodeValue = proxifyCSS($style->nodeValue, $url);
   }
