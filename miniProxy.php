@@ -68,7 +68,12 @@ if (!function_exists("getallheaders")) {
   }
 }
 
-define("PROXY_PREFIX", "http" . (isset($_SERVER['HTTPS']) ? "s" : "") . "://" . $_SERVER["SERVER_NAME"] . ($_SERVER["SERVER_PORT"] != 80 ? ":" . $_SERVER["SERVER_PORT"] : "") . $_SERVER["SCRIPT_NAME"] . "/");
+$prefixPort = $_SERVER["SERVER_PORT"] != 80 ? ":" . $_SERVER["SERVER_PORT"] : "";
+// Use HTTP_HOST to support client-configured DNS (instead of SERVER_NAME), but remove the port if one is present
+$prefixHost = $_SERVER["HTTP_HOST"];
+$prefixHost = strpos($prefixHost, ":") ? implode(":", explode(":", $_SERVER["HTTP_HOST"], -1)) : $prefixHost;
+
+define("PROXY_PREFIX", "http" . (isset($_SERVER["HTTPS"]) ? "s" : "") . "://" . $prefixHost . $prefixPort . $_SERVER["SCRIPT_NAME"] . "/");
 
 //Makes an HTTP request via cURL, using request data that was passed directly to this script.
 function makeRequest($url) {
@@ -109,11 +114,11 @@ function makeRequest($url) {
       //but the php://input method works. This is likely to be flaky
       //across different server environments.
       //More info here: http://stackoverflow.com/questions/8899239/http-raw-post-data-not-being-populated-after-upgrade-to-php-5-3
-      curl_setopt($ch, CURLOPT_POSTFIELDS, file_get_contents('php://input'));
+      curl_setopt($ch, CURLOPT_POSTFIELDS, file_get_contents("php://input"));
     break;
     case "PUT":
       curl_setopt($ch, CURLOPT_PUT, true);
-      curl_setopt($ch, CURLOPT_INFILE, fopen('php://input', 'r'));
+      curl_setopt($ch, CURLOPT_INFILE, fopen("php://input", "r"));
     break;
   }
 
@@ -147,8 +152,8 @@ function rel2abs($rel, $base) {
   if (parse_url($rel, PHP_URL_SCHEME) != "" || strpos($rel, "//") === 0) return $rel; //Return if already an absolute URL
   if ($rel[0] == "#" || $rel[0] == "?") return $base.$rel; //Queries and anchors
   extract(parse_url($base)); //Parse base URL and convert to local variables: $scheme, $host, $path
-  $path = isset($path) ? preg_replace('#/[^/]*$#', "", $path) : "/"; //Remove non-directory element from path
-  if ($rel[0] == '/') $path = ""; //Destroy path if relative url points to root
+  $path = isset($path) ? preg_replace("#/[^/]*$#", "", $path) : "/"; //Remove non-directory element from path
+  if ($rel[0] == "/") $path = ""; //Destroy path if relative url points to root
   $port = isset($port) && $port != 80 ? ":" . $port : "";
   $auth = "";
   if (isset($user)) {
@@ -281,7 +286,7 @@ if (stripos($contentType, "text/html") !== false) {
   $xpath = new DOMXPath($doc);
 
   //Rewrite forms so that their actions point back to the proxy.
-  foreach($xpath->query('//form') as $form) {
+  foreach($xpath->query("//form") as $form) {
     $method = $form->getAttribute("method");
     $action = $form->getAttribute("action");
     //If the form doesn't have an action, the action is the page itself.
@@ -291,17 +296,17 @@ if (stripos($contentType, "text/html") !== false) {
     $form->setAttribute("action", PROXY_PREFIX . $action);
   }
   //Profixy <style> tags.
-  foreach($xpath->query('//style') as $style) {
+  foreach($xpath->query("//style") as $style) {
     $style->nodeValue = proxifyCSS($style->nodeValue, $url);
   }
   //Proxify tags with a "style" attribute.
-  foreach ($xpath->query('//*[@style]') as $element) {
+  foreach ($xpath->query("//*[@style]") as $element) {
     $element->setAttribute("style", proxifyCSS($element->getAttribute("style"), $url));
   }
   //Proxify any of these attributes appearing in any tag.
   $proxifyAttributes = array("href", "src");
   foreach($proxifyAttributes as $attrName) {
-    foreach($xpath->query('//*[@' . $attrName . ']') as $element) { //For every element with the given attribute...
+    foreach($xpath->query("//*[@" . $attrName . "]") as $element) { //For every element with the given attribute...
       $attrContent = $element->getAttribute($attrName);
       if ($attrName == "href" && preg_match("/^(javascript|magnet|mailto):/i", $attrContent)) continue;
       $attrContent = rel2abs($attrContent, $url);
@@ -321,8 +326,8 @@ if (stripos($contentType, "text/html") !== false) {
   //TODO: This is obviously only useful for browsers that use XMLHttpRequest but
   //it's better than nothing.
 
-  $head = $xpath->query('//head')->item(0);
-  $body = $xpath->query('//body')->item(0);
+  $head = $xpath->query("//head")->item(0);
+  $body = $xpath->query("//body")->item(0);
   $prependElem = $head != NULL ? $head : $body;
 
   //Only bother trying to apply this hack if the DOM has a <head> or <body> element;
