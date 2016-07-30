@@ -344,9 +344,9 @@ if (stripos($contentType, "text/html") !== false) {
     if (strcasecmp($element->getAttribute("http-equiv"), "refresh") === 0) {
       $content = $element->getAttribute("content");
       if (!empty($content)) {
-        $splitContent = preg_split("/url=/i", $content);
+        $splitContent = preg_split("/=/", $content);
         if (isset($splitContent[1])) {
-          $element->setAttribute("content", $splitContent[0] . PROXY_PREFIX . rel2abs($splitContent[1], $url));
+          $element->setAttribute("content", $splitContent[0] . "=" . PROXY_PREFIX . rel2abs($splitContent[1], $url));
         }
       }
     }
