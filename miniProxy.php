@@ -331,6 +331,7 @@ if (stripos($contentType, "text/html") !== false) {
     //If the form doesn't have an action, the action is the page itself.
     //Otherwise, change an existing action to an absolute version.
     $action = empty($action) ? $url : rel2abs($action, $url);
+    $action = str_replace('&', '&amp;', $action);
     //Rewrite the form action to point back at the proxy.
     $form->setAttribute("action", rtrim(PROXY_PREFIX, "?"));
     //Add a hidden form field that the proxy can later use to retreive the original form action.
