@@ -1,0 +1,21 @@
+#delete these hashtags in application, version, if it says error in Google Cloud
+#this is just a thing to you so it can be hosted for free on the web!!!
+#example: https://miniproxy-php.appspot.com
+#source of this whole thing: https://github.com/scheng123/Proxy-php-Google-Cloud
+
+
+#application: myapp
+#version: first
+runtime: php55
+api_version: 1
+
+handlers:
+# Serve images as static resources.
+- url: /(.+\.(gif|png|jpg))$
+  static_files: \1
+  upload: .+\.(gif|png|jpg)$
+  application_readable: true
+
+# Serve php scripts.
+- url: /.*
+  script: /miniProxy.php
