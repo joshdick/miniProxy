@@ -335,7 +335,7 @@ if (stripos($contentType, "text/html") !== false) {
     $form->setAttribute("action", rtrim(PROXY_PREFIX, "?"));
     //Add a hidden form field that the proxy can later use to retreive the original form action.
     $actionInput = $doc->createDocumentFragment();
-    $actionInput->appendXML('<input type="hidden" name="miniProxyFormAction" value="' . $action . '" />');
+    $actionInput->appendXML('<input type="hidden" name="miniProxyFormAction" value="' . htmlspecialchars($action) . '" />');
     $form->appendChild($actionInput);
   }
   //Proxify <meta> tags with an 'http-equiv="refresh"' attribute.
