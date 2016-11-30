@@ -22,8 +22,8 @@ $whitelistPatterns = array(
 $forceCORS = false;
 
 function _proxy_setting(&$ch){
-  curl_setopt($ch,CURLOPT_PROXY,'139.224.226.214');
-  curl_setopt($ch,CURLOPT_PROXYPORT, 5021);
+  curl_setopt($ch,CURLOPT_PROXY,'127.0.0.1');
+  curl_setopt($ch,CURLOPT_PROXYPORT, 8080);
   curl_setopt($ch,CURLOPT_CONNECTTIMEOUT, 20);
   curl_setopt($ch,CURLOPT_PROXYTYPE,CURLPROXY_SOCKS5);
   // curl_setopt($ch,CURLOPT_PROXYAUTH,CURLAUTH_BASIC);
