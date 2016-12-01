@@ -25,7 +25,7 @@ $forceCORS = false;
 
 ob_start("ob_gzhandler");
 
-if (version_compare(PHP_VERSION, '5.4.7', '<')) {
+if (version_compare(PHP_VERSION, "5.4.7", "<")) {
     die ("miniProxy requires PHP version 5.4.7 or later.");
 }
 
@@ -232,7 +232,7 @@ if (isset($_POST["miniProxyFormAction"])) {
   if (isset($queryParams["miniProxyFormAction"])) {
     $formAction = $queryParams["miniProxyFormAction"];
     unset($queryParams["miniProxyFormAction"]);
-    $url = $formAction . '?' . http_build_query($queryParams);
+    $url = $formAction . "?" . http_build_query($queryParams);
   } else {
     $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
   }
@@ -296,7 +296,7 @@ foreach ($headerLines as $header) {
   }
 }
 //Prevent robots from indexing proxified pages
-header('X-Robots-Tag: noindex, nofollow');
+header("X-Robots-Tag: noindex, nofollow");
 
 if ($forceCORS) {
   //This logic is based on code found at: http://stackoverflow.com/a/9866124/278810
