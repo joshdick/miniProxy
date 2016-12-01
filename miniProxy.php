@@ -175,8 +175,24 @@ function rel2abs($rel, $base) {
 
 //Proxify contents of url() references in blocks of CSS text.
 function proxifyCSS($css, $baseURL) {
+  // Add a "url()" wrapper to any CSS imports that only specify a URL without the wrapper
+  $sourceLines = explode("\n", $css);
+  $normalizedLines = [];
+  foreach ($sourceLines as $line) {
+    if (preg_match("/@import\s+url/i", $line)) {
+      $normalizedLines[] = $line;
+    } else {
+      $normalizedLines[] = preg_replace_callback(
+        "/(@import\s+)([^;\s]+)([\s;])/i",
+        function($matches) use ($baseURL) {
+          return $matches[1] . "url(" . $matches[2] . ")" . $matches[3];
+        },
+        $line);
+    }
+  }
+  $normalizedCSS = implode("\n", $normalizedLines);
   return preg_replace_callback(
-    '/url\((.*?)\)/i',
+    "/url\((.*?)\)/i",
     function($matches) use ($baseURL) {
         $url = $matches[1];
         //Remove any surrounding single or double quotes from the URL so it can be passed to rel2abs - the quotes are optional in CSS
@@ -190,7 +206,7 @@ function proxifyCSS($css, $baseURL) {
         if (stripos($url, "data:") === 0) return "url(" . $url . ")"; //The URL isn't an HTTP URL but is actual binary data. Don't proxify it.
         return "url(" . PROXY_PREFIX . rel2abs($url, $baseURL) . ")";
     },
-    $css);
+    $normalizedCSS);
 }
 
 //Proxify "srcset" attributes (normally associated with <img> tags.)
