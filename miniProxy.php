@@ -26,10 +26,10 @@ $forceCORS = false;
 ob_start("ob_gzhandler");
 
 if (version_compare(PHP_VERSION, "5.4.7", "<")) {
-    die ("miniProxy requires PHP version 5.4.7 or later.");
+    die("miniProxy requires PHP version 5.4.7 or later.");
 }
 
-if (!function_exists("curl_init")) die ("miniProxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
+if (!function_exists("curl_init")) die("miniProxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
 
 //Helper function for use inside $whitelistPatterns.
 //Returns a regex that matches all HTTP[S] URLs for a given hostname.
@@ -175,7 +175,8 @@ function rel2abs($rel, $base) {
 
 //Proxify contents of url() references in blocks of CSS text.
 function proxifyCSS($css, $baseURL) {
-  // Add a "url()" wrapper to any CSS imports that only specify a URL without the wrapper
+  // Add a "url()" wrapper to any CSS @import rules that only specify a URL without the wrapper,
+  // so that they're proxified when searching for "url()" wrappers below.
   $sourceLines = explode("\n", $css);
   $normalizedLines = [];
   foreach ($sourceLines as $line) {
