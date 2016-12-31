@@ -68,7 +68,7 @@ if (!function_exists("getallheaders")) {
   }
 }
 
-if( (!isset($_SERVER["HTTPS"]) && $_SERVER["SERVER_PORT"] = 80) || (isset($_SERVER["HTTPS"]) && $_SERVER["SERVER_PORT"] = 433)){
+if( (!isset($_SERVER["HTTPS"]) && $_SERVER["SERVER_PORT"] == 80) || (isset($_SERVER["HTTPS"]) && $_SERVER["SERVER_PORT"] == 433)){
 $prefixPort = "";
 }else{
 $prefixPort = ":" . $_SERVER["SERVER_PORT"];
