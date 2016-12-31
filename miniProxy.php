@@ -68,7 +68,11 @@ if (!function_exists("getallheaders")) {
   }
 }
 
-$prefixPort = $_SERVER["SERVER_PORT"] != 80 ? ":" . $_SERVER["SERVER_PORT"] : "";
+if( (!isset($_SERVER["HTTPS"]) && $_SERVER["SERVER_PORT"] = 80) || (isset($_SERVER["HTTPS"]) && $_SERVER["SERVER_PORT"] = 433)){
+$prefixPort = "";
+}else{
+$prefixPort = ":" . $_SERVER["SERVER_PORT"];
+}
 //Use HTTP_HOST to support client-configured DNS (instead of SERVER_NAME), but remove the port if one is present
 $prefixHost = $_SERVER["HTTP_HOST"];
 $prefixHost = strpos($prefixHost, ":") ? implode(":", explode(":", $_SERVER["HTTP_HOST"], -1)) : $prefixHost;
