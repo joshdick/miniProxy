@@ -294,11 +294,11 @@ $headerLines = explode("\r\n", $lastHeaderBlock);
 foreach ($headerLines as $header) {
   $header = trim($header);
   if (!preg_match($header_blacklist_pattern, $header)) {
-    header($header);
+    header($header, false);
   }
 }
 //Prevent robots from indexing proxified pages
-header("X-Robots-Tag: noindex, nofollow");
+header("X-Robots-Tag: noindex, nofollow", true);
 
 if ($forceCORS) {
   //This logic is based on code found at: http://stackoverflow.com/a/9866124/278810
@@ -488,6 +488,6 @@ if (stripos($contentType, "text/html") !== false) {
 } else if (stripos($contentType, "text/css") !== false) { //This is CSS, so proxify url() references.
   echo proxifyCSS($responseBody, $url);
 } else { //This isn't a web page or CSS, so serve unmodified through the proxy with the correct headers (images, JavaScript, etc.)
-  header("Content-Length: " . strlen($responseBody));
+  header("Content-Length: " . strlen($responseBody), true);
   echo $responseBody;
 }
