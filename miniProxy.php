@@ -21,6 +21,16 @@ $whitelistPatterns = array(
 //To enable CORS (cross-origin resource sharing) for proxied sites, set $forceCORS to true.
 $forceCORS = false;
 
+function _proxy_setting(&$ch){
+  // curl_setopt($ch,CURLOPT_PROXY,'127.0.0.1');
+  // curl_setopt($ch,CURLOPT_PROXYPORT, 8080);
+  // curl_setopt($ch,CURLOPT_CONNECTTIMEOUT, 20);
+  // curl_setopt($ch,CURLOPT_PROXYTYPE,CURLPROXY_SOCKS5);
+  // curl_setopt($ch,CURLOPT_PROXYAUTH,CURLAUTH_BASIC);
+  // curl_setopt($ch,CURLOPT_PROXYUSERPWD,'[User]:[Pwd] ');
+  return $ch;
+}
+
 /****************************** END CONFIGURATION ******************************/
 
 ob_start("ob_gzhandler");
@@ -136,6 +146,7 @@ function makeRequest($url) {
 
   //Set the request URL.
   curl_setopt($ch, CURLOPT_URL, $url);
+  function_exists('_proxy_setting') && $ch=_proxy_setting($ch);
 
   //Make the request.
   $response = curl_exec($ch);
