@@ -31,6 +31,8 @@ if (version_compare(PHP_VERSION, "5.4.7", "<")) {
 
 if (!function_exists("curl_init")) die("miniProxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
 
+session_start();
+
 //Helper function for use inside $whitelistPatterns.
 //Returns a regex that matches all HTTP[S] URLs for a given hostname.
 function getHostnamePattern($hostname) {
@@ -133,6 +135,13 @@ function makeRequest($url) {
   curl_setopt($ch, CURLOPT_HEADER, true);
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+  $parseUrl = parse_url(trim($url));
+  $host = trim($parseUrl['host'] ? $parseUrl['host'] : array_shift(explode('/', $parseUrl['path'], 2))); // http://stackoverflow.com/a/1974047/278810
+  $cookieFile = sys_get_temp_dir() . "cookiefile_" . session_id() . "_" . $host;
+
+  curl_setopt($ch, CURLOPT_COOKIEJAR, $cookieFile);
+  curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
 
   //Set the request URL.
   curl_setopt($ch, CURLOPT_URL, $url);
