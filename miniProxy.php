@@ -27,7 +27,7 @@ $forceCORS = false;
 $exampleURL = 'https://example.net';
 
 //Enable Cookies
-$enablecookies = true;
+$enablecookies = false;
 
 /****************************** END CONFIGURATION ******************************/
 ob_start("ob_gzhandler");
@@ -147,7 +147,7 @@ function makeRequest($url) {
     }else{
         //die("plugins/$domain.php");
     }
-    
+ //Function can be called, but isn't coded to delete cookies correctly 
   if($url == "cleancookie"){
 	$mask = 'cookiefile_*.*';
 	die('Detected Cookies: "' . glob($mask) . '" Have been deleted');
