@@ -26,8 +26,10 @@ $forceCORS = false;
 //if the URL form is left blank.
 $exampleURL = 'https://example.net';
 
-/****************************** END CONFIGURATION ******************************/
+//Enable Cookies
+$enablecookies = false;
 
+/****************************** END CONFIGURATION ******************************/
 ob_start("ob_gzhandler");
 
 if (version_compare(PHP_VERSION, "5.4.7", "<")) {
@@ -138,7 +140,33 @@ function makeRequest($url) {
   curl_setopt($ch, CURLOPT_HEADER, true);
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
+  //Load a plug-in for a website.
+  $domain = str_ireplace('www.', '', parse_url($url, PHP_URL_HOST)); //Get the domain for the URL(such as google.com rather than google.com/something/)
+  if (file_exists(realpath("plugins/$domain.php"))) {   
+        include realpath("plugins/$domain.php");//If it exists load the plug-in file for the selected website.              
+    } else {
+        //die("plugins/$domain.php");
+    }
+ //Function can be called, but isn't coded to delete cookies correctly 
+  if ($url == "cleancookie") {
+	$mask = sys_get_temp_dir() . "cookiefile_";
+	die('Detected Cookies: "' . glob($mask) . '" Have been deleted');
+	array_map('unlink', glob($mask));
+  }
+  
+  if (!enablecookies) {
+	//No use for this right now.. 
+  } else {
+	session_start();
+	
+	$parseUrl = parse_url(trim($url));
+	$host = trim($parseUrl['host'] ? $parseUrl['host'] : array_shift(explode('/', $parseUrl['path'], 2))); // http://stackoverflow.com/a/1974047/278810
+	
+	//This doesn't work on my server, so maybe it's broken? (ended up replacing it with "cookiefile_" . session_id() . "_" . $host; and setting the path to be "tmp/$cookieFile" rather than $cookieFile
+		$cookieFile = sys_get_temp_dir() . "cookiefile_" . session_id() . "_" . $host;
+		curl_setopt($ch, CURLOPT_COOKIEJAR,$cookieFile);
+		curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
+}
   //Set the request URL.
   curl_setopt($ch, CURLOPT_URL, $url);
 
@@ -245,13 +273,14 @@ if (isset($_POST["miniProxyFormAction"])) {
   }
 }
 if (empty($url)) {
-    die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . $exampleURL . "\">" . PROXY_PREFIX . $exampleURL . "</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"if (document.getElementById('site').value) { window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false; } else { window.location.href='" . PROXY_PREFIX . $exampleURL . "'; return false; }\" autocomplete=\"off\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
+   die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . $exampleURL . "\">" . PROXY_PREFIX . $exampleURL . "</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"if (document.getElementById('site').value) { window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false; } else { window.location.href='" . PROXY_PREFIX . $exampleURL . "'; return false; }\" autocomplete=\"off\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
 } else if (strpos($url, ":/") !== strpos($url, "://")) {
     //Work around the fact that some web servers (e.g. IIS 8.5) change double slashes appearing in the URL to a single slash.
     //See https://github.com/joshdick/miniProxy/pull/14
     $pos = strpos($url, ":/");
     $url = substr_replace($url, "://", $pos, strlen(":/"));
 }
+	
 $scheme = parse_url($url, PHP_URL_SCHEME);
 if (empty($scheme)) {
   //Assume that any supplied URLs starting with // are HTTP URLs.
