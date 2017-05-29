@@ -144,27 +144,28 @@ function makeRequest($url) {
   $domain = str_ireplace('www.', '', parse_url($url, PHP_URL_HOST)); //Get the domain for the URL(such as google.com rather than google.com/something/)
   if (file_exists(realpath("plugins/$domain.php"))) {   
         include realpath("plugins/$domain.php");//If it exists load the plug-in file for the selected website.              
-    }else{
+    } else {
         //die("plugins/$domain.php");
     }
  //Function can be called, but isn't coded to delete cookies correctly 
-  if($url == "cleancookie"){
-	$mask = 'cookiefile_*.*';
+  if ($url == "cleancookie") {
+	$mask = sys_get_temp_dir() . "cookiefile_";
 	die('Detected Cookies: "' . glob($mask) . '" Have been deleted');
 	array_map('unlink', glob($mask));
   }
   
-  if(!enablecookies){
+  if (!enablecookies) {
 	//No use for this right now.. 
-  }else{
+  } else {
 	session_start();
 	
 	$parseUrl = parse_url(trim($url));
 	$host = trim($parseUrl['host'] ? $parseUrl['host'] : array_shift(explode('/', $parseUrl['path'], 2))); // http://stackoverflow.com/a/1974047/278810
 	
-		$cookieFile = "cookiefile_" . session_id() . "_" . $host;
-		curl_setopt($ch, CURLOPT_COOKIEJAR, "tmp/$cookieFile");
-		curl_setopt($ch, CURLOPT_COOKIEFILE, "tmp/$cookieFile");
+	//This doesn't work on my server, so maybe it's broken? (ended up replacing it with "cookiefile_" . session_id() . "_" . $host; and setting the path to be "tmp/$cookieFile" rather than $cookieFile
+		$cookieFile = sys_get_temp_dir() . "cookiefile_" . session_id() . "_" . $host;
+		curl_setopt($ch, CURLOPT_COOKIEJAR,$cookieFile);
+		curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
 }
   //Set the request URL.
   curl_setopt($ch, CURLOPT_URL, $url);
