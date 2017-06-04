@@ -139,6 +139,11 @@ function makeRequest($url) {
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
+  //Load a config for a website.
+  $domain = str_ireplace('www.', '', parse_url($url, PHP_URL_HOST));
+  if (file_exists(realpath("config/$domain.php"))) {   
+        include realpath("config/$domain.php");             
+    }
   //Set the request URL.
   curl_setopt($ch, CURLOPT_URL, $url);
 
