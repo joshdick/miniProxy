@@ -1,6 +1,4 @@
 <?php
-$enablecookies = true;
-
 //Fix for the security message 
 curl_setopt($ch, CURLOPT_HTTPHEADER, array("X-Forwarded-For: $ip"));
 	//Tells Facebook to use a old version for better compatiblity with MiniProxy
