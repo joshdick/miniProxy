@@ -26,6 +26,8 @@ $forceCORS = false;
 //if the URL form is left blank.
 $exampleURL = 'https://example.net';
 
+$defaulturl = '';
+
 /****************************** END CONFIGURATION ******************************/
 
 ob_start("ob_gzhandler");
@@ -138,7 +140,12 @@ function makeRequest($url) {
   curl_setopt($ch, CURLOPT_HEADER, true);
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
+  
+  //Load a config for a website.
+  $domain = str_ireplace('www.', '', parse_url($url, PHP_URL_HOST));
+  if (file_exists(realpath("config/$domain.php"))) {   
+        include realpath("config/$domain.php");             
+    }
   //Set the request URL.
   curl_setopt($ch, CURLOPT_URL, $url);
 
@@ -245,8 +252,12 @@ if (isset($_POST["miniProxyFormAction"])) {
   }
 }
 if (empty($url)) {
+	if (empty($defaulturl)) {
     die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . $exampleURL . "\">" . PROXY_PREFIX . $exampleURL . "</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"if (document.getElementById('site').value) { window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false; } else { window.location.href='" . PROXY_PREFIX . $exampleURL . "'; return false; }\" autocomplete=\"off\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
-} else if (strpos($url, ":/") !== strpos($url, "://")) {
+	}else{
+	$url = $defaulturl;	
+	}
+	} else if (strpos($url, ":/") !== strpos($url, "://")) {
     //Work around the fact that some web servers (e.g. IIS 8.5) change double slashes appearing in the URL to a single slash.
     //See https://github.com/joshdick/miniProxy/pull/14
     $pos = strpos($url, ":/");
