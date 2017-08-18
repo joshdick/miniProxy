@@ -55,16 +55,18 @@ function getHostnamePattern($hostname) {
 function removeKeys(&$assoc, $keys2remove) {
   $keys = array_keys($assoc);
   $map = array();
+  $removedKeys = array();
   foreach ($keys as $key) {
-     $map[strtolower($key)] = $key;
+    $map[strtolower($key)] = $key;
   }
-
   foreach ($keys2remove as $key) {
     $key = strtolower($key);
     if (isset($map[$key])) {
-       unset($assoc[$map[$key]]);
+      unset($assoc[$map[$key]]);
+      $removedKeys[] = $map[$key];
     }
   }
+  return $removedKeys;
 }
 
 if (!function_exists("getallheaders")) {
@@ -106,11 +108,14 @@ function makeRequest($url) {
   $browserRequestHeaders = getallheaders();
 
   //...but let cURL set some headers on its own.
-  removeKeys($browserRequestHeaders, array(
-    "Host",
+  $removedHeaders = removeKeys($browserRequestHeaders, array(
+    "Accept-Encoding", //Throw away the browser's Accept-Encoding header if any and let cURL make the request using gzip if possible.
     "Content-Length",
-    "Accept-Encoding" //Throw away the browser's Accept-Encoding header if any and let cURL make the request using gzip if possible.
+    "Host",
+    "Origin"
   ));
+
+  array_change_key_case($removedHeaders, CASE_LOWER);
 
   curl_setopt($ch, CURLOPT_ENCODING, "");
   //Transform the associative array from getallheaders() into an
@@ -122,6 +127,13 @@ function makeRequest($url) {
   if (!$anonymize) {
     $curlRequestHeaders[] = "X-Forwarded-For: " . $_SERVER["REMOTE_ADDR"];
   }
+  //Any `origin` header sent by the browser will refer to the proxy itself.
+  //If an `origin` header is present in the request, rewrite it to point to the correct origin.
+  if (array_key_exists('origin', $removedHeaders)) {
+    $urlParts = parse_url($url);
+    $port = $urlParts['port'];
+    $curlRequestHeaders[] = "Origin: " . $urlParts['scheme'] . "://" . $urlParts['host'] . (empty($port) ? "" : ":" . $port);
+  };
   curl_setopt($ch, CURLOPT_HTTPHEADER, $curlRequestHeaders);
 
   //Proxy any received GET/POST/PUT data.
