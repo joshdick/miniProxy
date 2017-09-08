@@ -268,7 +268,7 @@ if (isset($_POST["miniProxyFormAction"])) {
   } else {
     // Add support for /miniProxy.php?$url
     // or /single_folder/$url
-    $slashPos = strpos($_SERVER["REQUEST_URI"], "/", 1);
+    $slashPos = strpos($_SERVER["REQUEST_URI"], "/", strrchr($_SERVER["SCRIPT_NAME"], "/")+1);
     if ($slashPos === False) {
       $slashPos = strlen($_SERVER["REQUEST_URI"]);
     }
