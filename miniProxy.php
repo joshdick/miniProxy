@@ -266,7 +266,18 @@ if (isset($_POST["miniProxyFormAction"])) {
     unset($queryParams["miniProxyFormAction"]);
     $url = $formAction . "?" . http_build_query($queryParams);
   } else {
-    $url = substr($_SERVER["REQUEST_URI"], strlen($_SERVER["SCRIPT_NAME"]) + 1);
+    // Add support for /miniProxy.php?$url
+    // or /single_folder/$url
+    $slashPos = strpos($_SERVER["REQUEST_URI"], "/", 1);
+    if ($slashPos === False) {
+      $slashPos = strlen($_SERVER["REQUEST_URI"]);
+    }
+    $questionPos = strpos($_SERVER["REQUEST_URI"], "?");
+    if ($questionPos === False) {
+      $questionPos = strlen($_SERVER["REQUEST_URI"]);
+    }
+    $minPos = min($slashPos, $questionPos) + 1;
+    $url = substr($_SERVER["REQUEST_URI"], $minPos);
   }
 }
 if (empty($url)) {
