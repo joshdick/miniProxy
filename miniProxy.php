@@ -39,10 +39,15 @@ $landingExampleURL = "https://example.net";
 ob_start("ob_gzhandler");
 
 if (version_compare(PHP_VERSION, "5.4.7", "<")) {
-    die("miniProxy requires PHP version 5.4.7 or later.");
+  die("miniProxy requires PHP version 5.4.7 or later.");
 }
 
-if (!function_exists("curl_init")) die("miniProxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
+$requiredExtensions = ['curl', 'mbstring'];
+foreach($requiredExtensions as $requiredExtension) {
+  if (!extension_loaded($requiredExtension)) {
+    die("miniProxy requires PHP's \"" . $requiredExtension . "\" extension. Please install/enable it on your server and try again.");
+  }
+}
 
 //Helper function for use inside $whitelistPatterns.
 //Returns a regex that matches all HTTP[S] URLs for a given hostname.
