@@ -42,7 +42,7 @@ if (version_compare(PHP_VERSION, "5.4.7", "<")) {
   die("miniProxy requires PHP version 5.4.7 or later.");
 }
 
-$requiredExtensions = ['curl', 'mbstring'];
+$requiredExtensions = ['curl', 'mbstring', 'xml'];
 foreach($requiredExtensions as $requiredExtension) {
   if (!extension_loaded($requiredExtension)) {
     die("miniProxy requires PHP's \"" . $requiredExtension . "\" extension. Please install/enable it on your server and try again.");
