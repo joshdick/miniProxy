@@ -21,20 +21,33 @@ $whitelistPatterns = array(
 //To enable CORS (cross-origin resource sharing) for proxied sites, set $forceCORS to true.
 $forceCORS = false;
 
-//URL that will be used as an example in the instructional text on the miniProxy landing page,
-//and that will be proxied when pressing the 'Proxy It!' button on the landing page
-//if the URL form is left blank.
-$exampleURL = 'https://example.net';
+//Set to false to report the client machine's IP address to proxied sites via the HTTP `x-forwarded-for` header.
+//Setting to false may improve compatibility with some sites, but also exposes more information about end users to proxied sites.
+$anonymize = true;
+
+//Start/default URL that that will be proxied when miniProxy is first loaded in a browser/accessed directly with no URL to proxy.
+//If empty, miniProxy will show its own landing page.
+$startURL = "";
+
+//When no $startURL is configured above, miniProxy will show its own landing page with a URL form field
+//and the configured example URL. The example URL appears in the instructional text on the miniProxy landing page,
+//and is proxied when pressing the 'Proxy It!' button on the landing page if its URL form is left blank.
+$landingExampleURL = "https://example.net";
 
 /****************************** END CONFIGURATION ******************************/
 
 ob_start("ob_gzhandler");
 
 if (version_compare(PHP_VERSION, "5.4.7", "<")) {
-    die("miniProxy requires PHP version 5.4.7 or later.");
+  die("miniProxy requires PHP version 5.4.7 or later.");
 }
 
-if (!function_exists("curl_init")) die("miniProxy requires PHP's cURL extension. Please install/enable it on your server and try again.");
+$requiredExtensions = ['curl', 'mbstring', 'xml'];
+foreach($requiredExtensions as $requiredExtension) {
+  if (!extension_loaded($requiredExtension)) {
+    die("miniProxy requires PHP's \"" . $requiredExtension . "\" extension. Please install/enable it on your server and try again.");
+  }
+}
 
 session_start();
 
@@ -49,16 +62,18 @@ function getHostnamePattern($hostname) {
 function removeKeys(&$assoc, $keys2remove) {
   $keys = array_keys($assoc);
   $map = array();
+  $removedKeys = array();
   foreach ($keys as $key) {
-     $map[strtolower($key)] = $key;
+    $map[strtolower($key)] = $key;
   }
-
   foreach ($keys2remove as $key) {
     $key = strtolower($key);
     if (isset($map[$key])) {
-       unset($assoc[$map[$key]]);
+      unset($assoc[$map[$key]]);
+      $removedKeys[] = $map[$key];
     }
   }
+  return $removedKeys;
 }
 
 if (!function_exists("getallheaders")) {
@@ -86,6 +101,8 @@ define("PROXY_PREFIX", "http" . (isset($_SERVER["HTTPS"]) ? "s" : "") . "://" . 
 //Makes an HTTP request via cURL, using request data that was passed directly to this script.
 function makeRequest($url) {
 
+  global $anonymize;
+
   //Tell cURL to make the request using the brower's user-agent if there is one, or a fallback user-agent otherwise.
   $user_agent = $_SERVER["HTTP_USER_AGENT"];
   if (empty($user_agent)) {
@@ -98,11 +115,14 @@ function makeRequest($url) {
   $browserRequestHeaders = getallheaders();
 
   //...but let cURL set some headers on its own.
-  removeKeys($browserRequestHeaders, array(
-    "Host",
+  $removedHeaders = removeKeys($browserRequestHeaders, array(
+    "Accept-Encoding", //Throw away the browser's Accept-Encoding header if any and let cURL make the request using gzip if possible.
     "Content-Length",
-    "Accept-Encoding" //Throw away the browser's Accept-Encoding header if any and let cURL make the request using gzip if possible.
+    "Host",
+    "Origin"
   ));
+
+  array_change_key_case($removedHeaders, CASE_LOWER);
 
   curl_setopt($ch, CURLOPT_ENCODING, "");
   //Transform the associative array from getallheaders() into an
@@ -111,6 +131,16 @@ function makeRequest($url) {
   foreach ($browserRequestHeaders as $name => $value) {
     $curlRequestHeaders[] = $name . ": " . $value;
   }
+  if (!$anonymize) {
+    $curlRequestHeaders[] = "X-Forwarded-For: " . $_SERVER["REMOTE_ADDR"];
+  }
+  //Any `origin` header sent by the browser will refer to the proxy itself.
+  //If an `origin` header is present in the request, rewrite it to point to the correct origin.
+  if (array_key_exists('origin', $removedHeaders)) {
+    $urlParts = parse_url($url);
+    $port = $urlParts['port'];
+    $curlRequestHeaders[] = "Origin: " . $urlParts['scheme'] . "://" . $urlParts['host'] . (empty($port) ? "" : ":" . $port);
+  };
   curl_setopt($ch, CURLOPT_HTTPHEADER, $curlRequestHeaders);
 
   //Proxy any received GET/POST/PUT data.
@@ -254,7 +284,11 @@ if (isset($_POST["miniProxyFormAction"])) {
   }
 }
 if (empty($url)) {
-    die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . $exampleURL . "\">" . PROXY_PREFIX . $exampleURL . "</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"if (document.getElementById('site').value) { window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false; } else { window.location.href='" . PROXY_PREFIX . $exampleURL . "'; return false; } \"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
+    if (empty($startURL)) {
+      die("<html><head><title>miniProxy</title></head><body><h1>Welcome to miniProxy!</h1>miniProxy can be directly invoked like this: <a href=\"" . PROXY_PREFIX . $landingExampleURL . "\">" . PROXY_PREFIX . $landingExampleURL . "</a><br /><br />Or, you can simply enter a URL below:<br /><br /><form onsubmit=\"if (document.getElementById('site').value) { window.location.href='" . PROXY_PREFIX . "' + document.getElementById('site').value; return false; } else { window.location.href='" . PROXY_PREFIX . $landingExampleURL . "'; return false; }\" autocomplete=\"off\"><input id=\"site\" type=\"text\" size=\"50\" /><input type=\"submit\" value=\"Proxy It!\" /></form></body></html>");
+    } else {
+      $url = $startURL;
+    }
 } else if (strpos($url, ":/") !== strpos($url, "://")) {
     //Work around the fact that some web servers (e.g. IIS 8.5) change double slashes appearing in the URL to a single slash.
     //See https://github.com/joshdick/miniProxy/pull/14

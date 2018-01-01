@@ -12,7 +12,7 @@ miniProxy is a simple web proxy written in PHP that can allow you to bypass Inte
 
 ## Prerequisites
 
-miniProxy should be able to run on any web server with PHP 5.4.7 or later. PHP's cURL extension must be installed.
+miniProxy should be able to run on any web server with PHP 5.4.7 or later. miniProxy requires PHP's `curl` and `mbstring` extensions to be installed.
 
 ## Installation and Use
 
