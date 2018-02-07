@@ -18,6 +18,10 @@ $whitelistPatterns = array(
   //getHostnamePattern("example.net")
 );
 
+//To enable authentication set the flag to true and define the user database
+$authenticate = false;
+$userdb = array('user1'=>'p4ssw0rd1!', 'user2'=>'hunter2');
+
 //To enable CORS (cross-origin resource sharing) for proxied sites, set $forceCORS to true.
 $forceCORS = false;
 
@@ -35,6 +39,15 @@ $startURL = "";
 $landingExampleURL = "https://example.net";
 
 /****************************** END CONFIGURATION ******************************/
+
+// Stack the conditions in the second parent condition to prevent warnings in error.log
+if ($authenticate && (!isset($_SERVER['PHP_AUTH_USER'])
+                  || !array_key_exists($_SERVER['PHP_AUTH_USER'],$userdb)
+                  || $userdb[$_SERVER['PHP_AUTH_USER']] !== $_SERVER['PHP_AUTH_PW'])) {
+  header('WWW-Authenticate: Basic realm="Authenticate"');
+  header('HTTP/1.0 401 Unauthorized');
+  exit;
+}
 
 ob_start("ob_gzhandler");
 
