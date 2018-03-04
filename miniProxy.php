@@ -372,6 +372,19 @@ if (stripos($contentType, "text/html") !== false) {
 
   //Attempt to normalize character encoding.
   $detectedEncoding = mb_detect_encoding($responseBody, "UTF-8, ISO-8859-1");
+
+  //HTML document may define another encoding
+  $HTMLEncoding_result = preg_match("#<meta[ ]+([^>]*|)(charset=['\" ]*([^'\"> ][^'\">]+[^'\"> ])['\" ]*|charset=[ ]*([^'\"> ][^'\">]+[^'\"> ]))([^>]*|)>#i",$responseBody,$HTMLEncoding);
+  if ($HTMLEncoding_result>0){
+    //$HTMLEncoding[3] would be 'utf-8', 'gbk', 'gb2312', etc.
+    if($detectedEncoding !== $HTMLEncoding[3]){
+      //use the encoding setting inside the document
+      $detectedEncoding=$HTMLEncoding[3];
+      //remove the document ecoding setting
+      $responseBody=str_replace($HTMLEncoding[3], 'UTF-8', $responseBody);
+    }
+  }
+
   if ($detectedEncoding) {
     $responseBody = mb_convert_encoding($responseBody, "HTML-ENTITIES", $detectedEncoding);
   }
