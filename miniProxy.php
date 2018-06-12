@@ -246,6 +246,21 @@ function proxifyCSS($css, $baseURL) {
     $normalizedCSS);
 }
 
+//Proxify contents of src references in blocks of JS text.
+function proxifyJS($js, $baseURL) {
+  $proxifiedJs = $js;
+  if ($js != "") {
+    if (preg_match("/src\s*=\s*(\"|\')([a-zA-Z-_%0-9+&\/]*?\.[a-zA-Z-_%0-9+&\/]*?)(\"|\')/i", $js, $matches)) {
+      if (is_array($matches) && isset($matches[2]) && !empty($matches[2])) {
+        $urlContent = rel2abs($matches[2], $baseURL);
+        $urlContent = PROXY_PREFIX . $urlContent;
+        $proxifiedJs = str_replace($matches[2], $urlContent, $js);
+      }
+    }
+  }
+  return $proxifiedJs;
+}
+
 //Proxify "srcset" attributes (normally associated with <img> tags.)
 function proxifySrcset($srcset, $baseURL) {
   $sources = array_map("trim", explode(",", $srcset)); //Split all contents by comma and trim each value
@@ -411,6 +426,10 @@ if (stripos($contentType, "text/html") !== false) {
   foreach($xpath->query("//style") as $style) {
     $style->nodeValue = proxifyCSS($style->nodeValue, $url);
   }
+  //Profixy <script> tags.
+  foreach($xpath->query("//script") as $script) {
+    $script->nodeValue = proxifyJS($script->nodeValue, $url);
+  }
   //Proxify tags with a "style" attribute.
   foreach ($xpath->query("//*[@style]") as $element) {
     $element->setAttribute("style", proxifyCSS($element->getAttribute("style"), $url));
@@ -418,6 +437,10 @@ if (stripos($contentType, "text/html") !== false) {
   //Proxify "srcset" attributes in <img> tags.
   foreach ($xpath->query("//img[@srcset]") as $element) {
     $element->setAttribute("srcset", proxifySrcset($element->getAttribute("srcset"), $url));
+  }
+  //Proxify "onerror" attributes in <img> tags.
+  foreach ($xpath->query("//img[@onerror]") as $element) {
+    $element->setAttribute("onerror", proxifyJS($element->getAttribute("onerror"), $url));
   }
   //Proxify any of these attributes appearing in any tag.
   $proxifyAttributes = array("href", "src");
@@ -526,7 +549,9 @@ if (stripos($contentType, "text/html") !== false) {
   echo "<!-- Proxified page constructed by miniProxy -->\n" . $doc->saveHTML();
 } else if (stripos($contentType, "text/css") !== false) { //This is CSS, so proxify url() references.
   echo proxifyCSS($responseBody, $url);
-} else { //This isn't a web page or CSS, so serve unmodified through the proxy with the correct headers (images, JavaScript, etc.)
+} else if ((stripos($contentType, "text/javascript") !== false) || (stripos($contentType, "application/javascript") !== false)) { //This is JS, so proxify src references.
+  echo proxifyJS($responseBody, $url);
+} else { //This isn't a web page, CSS or JS, so serve unmodified through the proxy with the correct headers (images, fonts etc.)
   header("Content-Length: " . strlen($responseBody), true);
   echo $responseBody;
 }
