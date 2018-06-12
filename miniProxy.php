@@ -507,7 +507,9 @@ if (stripos($contentType, "text/html") !== false) {
               if (arguments[1] !== null && arguments[1] !== undefined) {
                 var url = arguments[1];
                 url = rel2abs("' . $url . '", url);
-                url = "' . PROXY_PREFIX . '" + url;
+                if (url.search("' . PROXY_PREFIX . '") == -1) {
+                  url = "' . PROXY_PREFIX . '" + url;
+                }
                 arguments[1] = url;
               }
               return proxied.apply(this, [].slice.call(arguments));
