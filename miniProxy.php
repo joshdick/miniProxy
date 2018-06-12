@@ -322,7 +322,14 @@ if ($responseURL !== $url) {
 }
 
 //A regex that indicates which server response headers should be stripped out of the proxified response.
-$header_blacklist_pattern = "/^Content-Length|^Transfer-Encoding|^Content-Encoding.*gzip|^Content-Security-Policy/i";
+$header_blacklist = array(
+    'Content-Length',
+    'Transfer-Encoding',
+    'Content-Encoding.*gzip',
+    'Content-Security-Policy',
+    'X-Frame-Options'
+);
+$header_blacklist_pattern = "/^" . implode("|^", $header_blacklist) . "/i";
 
 //cURL can make multiple requests internally (for example, if CURLOPT_FOLLOWLOCATION is enabled), and reports
 //headers for every request it makes. Only proxy the last set of received response headers,
