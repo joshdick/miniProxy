@@ -38,11 +38,11 @@ $landingExampleURL = "https://example.net";
 
 ob_start("ob_gzhandler");
 
-if (version_compare(PHP_VERSION, "5.4.7", "<")) {
-  die("miniProxy requires PHP version 5.4.7 or later.");
+if (version_compare(PHP_VERSION, "5.3.3", "<")) {
+  die("miniProxy requires PHP version 5.3.3 or later.");
 }
 
-$requiredExtensions = ['curl', 'mbstring', 'xml'];
+$requiredExtensions = array('curl', 'mbstring', 'xml');
 foreach($requiredExtensions as $requiredExtension) {
   if (!extension_loaded($requiredExtension)) {
     die("miniProxy requires PHP's \"" . $requiredExtension . "\" extension. Please install/enable it on your server and try again.");
@@ -214,7 +214,7 @@ function proxifyCSS($css, $baseURL) {
   // Add a "url()" wrapper to any CSS @import rules that only specify a URL without the wrapper,
   // so that they're proxified when searching for "url()" wrappers below.
   $sourceLines = explode("\n", $css);
-  $normalizedLines = [];
+  $normalizedLines = array();
   foreach ($sourceLines as $line) {
     if (preg_match("/@import\s+url/i", $line)) {
       $normalizedLines[] = $line;
