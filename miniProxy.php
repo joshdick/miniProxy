@@ -68,7 +68,7 @@ function removeKeys(&$assoc, $keys2remove) {
     $key = strtolower($key);
     if (isset($map[$key])) {
       unset($assoc[$map[$key]]);
-      $removedKeys[] = $map[$key];
+      $removedKeys[] = strtolower($map[$key]);
     }
   }
   return $removedKeys;
@@ -120,8 +120,6 @@ function makeRequest($url) {
     "Origin"
   ));
 
-  array_change_key_case($removedHeaders, CASE_LOWER);
-
   curl_setopt($ch, CURLOPT_ENCODING, "");
   //Transform the associative array from getallheaders() into an
   //indexed array of header strings to be passed to cURL.
@@ -134,7 +132,7 @@ function makeRequest($url) {
   }
   //Any `origin` header sent by the browser will refer to the proxy itself.
   //If an `origin` header is present in the request, rewrite it to point to the correct origin.
-  if (array_key_exists('origin', $removedHeaders)) {
+  if (in_array('origin', $removedHeaders)) {
     $urlParts = parse_url($url);
     $port = $urlParts['port'];
     $curlRequestHeaders[] = "Origin: " . $urlParts['scheme'] . "://" . $urlParts['host'] . (empty($port) ? "" : ":" . $port);
