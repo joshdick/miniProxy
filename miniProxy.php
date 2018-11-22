@@ -507,7 +507,7 @@ if (stripos($contentType, "text/html") !== false) {
               if (arguments[1] !== null && arguments[1] !== undefined) {
                 var url = arguments[1];
                 url = rel2abs("' . $url . '", url);
-                if (url.search("' . PROXY_PREFIX . '") == -1) {
+                if (url.indexOf("' . PROXY_PREFIX . '") == -1) {
                   url = "' . PROXY_PREFIX . '" + url;
                 }
                 arguments[1] = url;
