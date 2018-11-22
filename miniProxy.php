@@ -120,7 +120,7 @@ function makeRequest($url) {
     "Origin"
   ));
 
-  array_change_key_case($removedHeaders, CASE_LOWER);
+  $removedHeaders = array_map("strtolower", $removedHeaders);
 
   curl_setopt($ch, CURLOPT_ENCODING, "");
   //Transform the associative array from getallheaders() into an
@@ -134,7 +134,7 @@ function makeRequest($url) {
   }
   //Any `origin` header sent by the browser will refer to the proxy itself.
   //If an `origin` header is present in the request, rewrite it to point to the correct origin.
-  if (array_key_exists('origin', $removedHeaders)) {
+  if (in_array('origin', $removedHeaders)) {
     $urlParts = parse_url($url);
     $port = $urlParts['port'];
     $curlRequestHeaders[] = "Origin: " . $urlParts['scheme'] . "://" . $urlParts['host'] . (empty($port) ? "" : ":" . $port);
