@@ -42,7 +42,7 @@ if (version_compare(PHP_VERSION, "5.4.7", "<")) {
   die("miniProxy requires PHP version 5.4.7 or later.");
 }
 
-$requiredExtensions = array('curl', 'mbstring', 'xml');
+$requiredExtensions = ["curl", "mbstring", "xml"];
 foreach($requiredExtensions as $requiredExtension) {
   if (!extension_loaded($requiredExtension)) {
     die("miniProxy requires PHP's \"" . $requiredExtension . "\" extension. Please install/enable it on your server and try again.");
@@ -134,10 +134,10 @@ function makeRequest($url) {
   }
   //Any `origin` header sent by the browser will refer to the proxy itself.
   //If an `origin` header is present in the request, rewrite it to point to the correct origin.
-  if (in_array('origin', $removedHeaders)) {
+  if (in_array("origin", $removedHeaders)) {
     $urlParts = parse_url($url);
-    $port = $urlParts['port'];
-    $curlRequestHeaders[] = "Origin: " . $urlParts['scheme'] . "://" . $urlParts['host'] . (empty($port) ? "" : ":" . $port);
+    $port = $urlParts["port"];
+    $curlRequestHeaders[] = "Origin: " . $urlParts["scheme"] . "://" . $urlParts["host"] . (empty($port) ? "" : ":" . $port);
   };
   curl_setopt($ch, CURLOPT_HTTPHEADER, $curlRequestHeaders);
 
@@ -214,7 +214,7 @@ function proxifyCSS($css, $baseURL) {
   // Add a "url()" wrapper to any CSS @import rules that only specify a URL without the wrapper,
   // so that they're proxified when searching for "url()" wrappers below.
   $sourceLines = explode("\n", $css);
-  $normalizedLines = array();
+  $normalizedLines = [];
   foreach ($sourceLines as $line) {
     if (preg_match("/@import\s+url/i", $line)) {
       $normalizedLines[] = $line;
