@@ -38,8 +38,8 @@ $landingExampleURL = "https://example.net";
 
 ob_start("ob_gzhandler");
 
-if (version_compare(PHP_VERSION, "5.3.3", "<")) {
-  die("miniProxy requires PHP version 5.3.3 or later.");
+if (version_compare(PHP_VERSION, "5.4.7", "<")) {
+  die("miniProxy requires PHP version 5.4.7 or later.");
 }
 
 $requiredExtensions = array('curl', 'mbstring', 'xml');
