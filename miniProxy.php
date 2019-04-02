@@ -445,14 +445,14 @@ if (stripos($contentType, "text/html") !== false) {
 
   $head = $xpath->query("//head")->item(0);
   $body = $xpath->query("//body")->item(0);
-  $prependElem = $head != NULL ? $head : $body;
+  $prependElem = $head != null ? $head : $body;
 
   //Only bother trying to apply this hack if the DOM has a <head> or <body> element;
   //insert some JavaScript at the top of whichever is available first.
   //Protects against cases where the server sends a Content-Type of "text/html" when
   //what's coming back is most likely not actually HTML.
   //TODO: Do this check before attempting to do any sort of DOM parsing?
-  if ($prependElem != NULL) {
+  if ($prependElem != null) {
 
     $scriptElem = $doc->createElement("script",
       '(function() {
