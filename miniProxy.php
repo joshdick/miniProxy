@@ -18,6 +18,9 @@ $whitelistPatterns = array(
   //getHostnamePattern("example.net")
 );
 
+//If set to true, turns the whitelist above into a blacklist, aka allowing any URL but the ones in the array.
+$useWhitelistAsBlacklist = false;
+
 //To enable CORS (cross-origin resource sharing) for proxied sites, set $forceCORS to true.
 $forceCORS = false;
 
@@ -300,7 +303,7 @@ if (empty($scheme)) {
 $urlIsValid = count($whitelistPatterns) === 0;
 foreach ($whitelistPatterns as $pattern) {
   if (preg_match($pattern, $url)) {
-    $urlIsValid = true;
+    $urlIsValid = !$useWhitelistAsBlacklist;
     break;
   }
 }
