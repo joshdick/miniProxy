@@ -21,6 +21,9 @@ $whitelistPatterns = array(
 //To enable CORS (cross-origin resource sharing) for proxied sites, set $forceCORS to true.
 $forceCORS = false;
 
+//Set to false to allow sites on the local network (where miniProxy is running) to be proxied.
+$disallowLocal = true;
+
 //Set to false to report the client machine's IP address to proxied sites via the HTTP `x-forwarded-for` header.
 //Setting to false may improve compatibility with some sites, but also exposes more information about end users to proxied sites.
 $anonymize = true;
@@ -151,7 +154,7 @@ function makeRequest($url) {
       //across different server environments.
       //More info here: http://stackoverflow.com/questions/8899239/http-raw-post-data-not-being-populated-after-upgrade-to-php-5-3
       //If the miniProxyFormAction field appears in the POST data, remove it so the destination server doesn't receive it.
-      $postData = Array();
+      $postData = [];
       parse_str(file_get_contents("php://input"), $postData);
       if (isset($postData["miniProxyFormAction"])) {
         unset($postData["miniProxyFormAction"]);
@@ -211,8 +214,8 @@ function rel2abs($rel, $base) {
 
 //Proxify contents of url() references in blocks of CSS text.
 function proxifyCSS($css, $baseURL) {
-  // Add a "url()" wrapper to any CSS @import rules that only specify a URL without the wrapper,
-  // so that they're proxified when searching for "url()" wrappers below.
+  //Add a "url()" wrapper to any CSS @import rules that only specify a URL without the wrapper,
+  //so that they're proxified when searching for "url()" wrappers below.
   $sourceLines = explode("\n", $css);
   $normalizedLines = [];
   foreach ($sourceLines as $line) {
@@ -263,7 +266,7 @@ if (isset($_POST["miniProxyFormAction"])) {
   $url = $_POST["miniProxyFormAction"];
   unset($_POST["miniProxyFormAction"]);
 } else {
-  $queryParams = Array();
+  $queryParams = [];
   parse_str($_SERVER["QUERY_STRING"], $queryParams);
   //If the miniProxyFormAction field appears in the query string, make $url start with its value, and rebuild the the query string without it.
   if (isset($queryParams["miniProxyFormAction"])) {
@@ -288,9 +291,12 @@ if (empty($url)) {
 }
 $scheme = parse_url($url, PHP_URL_SCHEME);
 if (empty($scheme)) {
-  //Assume that any supplied URLs starting with // are HTTP URLs.
   if (strpos($url, "//") === 0) {
+    //Assume that any supplied URLs starting with // are HTTP URLs.
     $url = "http:" . $url;
+  } else {
+    //Assume that any supplied URLs without a scheme (just a host) are HTTP URLs.
+    $url = "http://" . $url;
   }
 } else if (!preg_match("/^https?$/i", $scheme)) {
     die('Error: Detected a "' . $scheme . '" URL. miniProxy exclusively supports http[s] URLs.');
@@ -304,6 +310,28 @@ foreach ($whitelistPatterns as $pattern) {
     break;
   }
 }
+
+if ($disallowLocal) {
+  //First, generate a list of IP addresses that correspond to the requested URL.
+  $ips = [];
+  $host = parse_url($url, PHP_URL_HOST);
+  if (filter_var($host, FILTER_VALIDATE_IP)) {
+    //The supplied host is already a valid IP address.
+    $ips = [$host];
+  } else {
+    //The host is not a valid IP address; attempt to resolve it to one.
+    $dnsResult = dns_get_record($host, DNS_A + DNS_AAAA);
+    $ips = array_map(function($dnsRecord) { return $dnsRecord['type'] == 'A' ? $dnsRecord['ip'] : $dnsRecord['ipv6']; }, $dnsResult);
+  }
+  foreach ($ips as $ip) {
+    //If any of the IPs are in the private or reserved range, this URL is invalid.
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+      $urlIsValid = false;
+      break;
+    }
+  }
+}
+
 if (!$urlIsValid) {
   die("Error: The requested URL was disallowed by the server administrator.");
 }
