@@ -1,8 +1,14 @@
 <?php
 /*
+NOTE: miniProxy IS NO LONGER MAINTAINED AS OF APRIL 26th, 2020.
+IF YOU USE IT, YOU DO SO ENTIRELY AT YOUR OWN RISK.
+More information is available at <https://github.com/joshdick/miniProxy>.
+*/
+
+/*
 miniProxy - A simple PHP web proxy. <https://github.com/joshdick/miniProxy>
 Written and maintained by Joshua Dick <http://joshdick.net>.
-miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html>.
+miniProxy is licensed under the GNU GPL v3 <https://www.gnu.org/licenses/gpl-3.0.html>.
 */
 
 /****************************** START CONFIGURATION ******************************/
