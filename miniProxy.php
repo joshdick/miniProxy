@@ -7,16 +7,29 @@ miniProxy is licensed under the GNU GPL v3 <http://www.gnu.org/licenses/gpl.html
 
 /****************************** START CONFIGURATION ******************************/
 
+//NOTE: If a given URL matches a pattern in both $whitelistPatterns and $blacklistPatterns,
+//that URL will be treated as blacklisted.
+
 //To allow proxying any URL, set $whitelistPatterns to an empty array (the default).
 //To only allow proxying of specific URLs (whitelist), add corresponding regular expressions
-//to the $whitelistPatterns array. Enter the most specific patterns possible, to prevent possible abuse.
+//to the $whitelistPatterns array. To prevent possible abuse, enter the narrowest/most-specific patterns possible.
 //You can optionally use the "getHostnamePattern()" helper function to build a regular expression that
 //matches all URLs for a given hostname.
-$whitelistPatterns = array(
-  //Usage example: To support any URL at example.net, including sub-domains, uncomment the
+$whitelistPatterns = [
+  //Usage example: To whitelist any URL at example.net, including sub-domains, uncomment the
   //line below (which is equivalent to [ @^https?://([a-z0-9-]+\.)*example\.net@i ]):
   //getHostnamePattern("example.net")
-);
+];
+
+//To disallow proxying of specific URLs (blacklist), add corresponding regular expressions
+//to the $blacklistPatterns array. To prevent possible abuse, enter the broadest/least-specific patterns possible.
+//You can optionally use the "getHostnamePattern()" helper function to build a regular expression that
+//matches all URLs for a given hostname.
+$blacklistPatterns = [
+  //Usage example: To blacklist any URL at example.net, including sub-domains, uncomment the
+  //line below (which is equivalent to [ @^https?://([a-z0-9-]+\.)*example\.net@i ]):
+  //getHostnamePattern("example.net")
+];
 
 //To enable CORS (cross-origin resource sharing) for proxied sites, set $forceCORS to true.
 $forceCORS = false;
@@ -52,18 +65,65 @@ foreach($requiredExtensions as $requiredExtension) {
   }
 }
 
-//Helper function for use inside $whitelistPatterns.
+//Helper function for use inside $whitelistPatterns/$blacklistPatterns.
 //Returns a regex that matches all HTTP[S] URLs for a given hostname.
 function getHostnamePattern($hostname) {
   $escapedHostname = str_replace(".", "\.", $hostname);
   return "@^https?://([a-z0-9-]+\.)*" . $escapedHostname . "@i";
 }
 
+//Helper function that determines whether to allow proxying of a given URL.
+function isValidURL($url) {
+  //Validates a URL against the whitelist.
+  function passesWhitelist($url) {
+    if (count($GLOBALS['whitelistPatterns']) === 0) return true;
+    foreach ($GLOBALS['whitelistPatterns'] as $pattern) {
+      if (preg_match($pattern, $url)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  //Validates a URL against the blacklist.
+  function passesBlacklist($url) {
+    foreach ($GLOBALS['blacklistPatterns'] as $pattern) {
+      if (preg_match($pattern, $url)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function isLocal($url) {
+    //First, generate a list of IP addresses that correspond to the requested URL.
+    $ips = [];
+    $host = parse_url($url, PHP_URL_HOST);
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+      //The supplied host is already a valid IP address.
+      $ips = [$host];
+    } else {
+      //The host is not a valid IP address; attempt to resolve it to one.
+      $dnsResult = dns_get_record($host, DNS_A + DNS_AAAA);
+      $ips = array_map(function($dnsRecord) { return $dnsRecord['type'] == 'A' ? $dnsRecord['ip'] : $dnsRecord['ipv6']; }, $dnsResult);
+    }
+    foreach ($ips as $ip) {
+      //Determine whether any of the IPs are in the private or reserved range.
+      if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  return passesWhitelist($url) && passesBlacklist($url) && ($GLOBALS['disallowLocal'] ? !isLocal($url) : true);
+}
+
 //Helper function used to removes/unset keys from an associative array using case insensitive matching
 function removeKeys(&$assoc, $keys2remove) {
   $keys = array_keys($assoc);
-  $map = array();
-  $removedKeys = array();
+  $map = [];
+  $removedKeys = [];
   foreach ($keys as $key) {
     $map[strtolower($key)] = $key;
   }
@@ -80,7 +140,7 @@ function removeKeys(&$assoc, $keys2remove) {
 if (!function_exists("getallheaders")) {
   //Adapted from http://www.php.net/manual/en/function.getallheaders.php#99814
   function getallheaders() {
-    $result = array();
+    $result = [];
     foreach($_SERVER as $key => $value) {
       if (substr($key, 0, 5) == "HTTP_") {
         $key = str_replace(" ", "-", ucwords(strtolower(str_replace("_", " ", substr($key, 5)))));
@@ -116,19 +176,22 @@ function makeRequest($url) {
   $browserRequestHeaders = getallheaders();
 
   //...but let cURL set some headers on its own.
-  $removedHeaders = removeKeys($browserRequestHeaders, array(
-    "Accept-Encoding", //Throw away the browser's Accept-Encoding header if any and let cURL make the request using gzip if possible.
-    "Content-Length",
-    "Host",
-    "Origin"
-  ));
+  $removedHeaders = removeKeys(
+    $browserRequestHeaders,
+    [
+      "Accept-Encoding", //Throw away the browser's Accept-Encoding header if any and let cURL make the request using gzip if possible.
+      "Content-Length",
+      "Host",
+      "Origin"
+    ]
+  );
 
   $removedHeaders = array_map("strtolower", $removedHeaders);
 
   curl_setopt($ch, CURLOPT_ENCODING, "");
   //Transform the associative array from getallheaders() into an
   //indexed array of header strings to be passed to cURL.
-  $curlRequestHeaders = array();
+  $curlRequestHeaders = [];
   foreach ($browserRequestHeaders as $name => $value) {
     $curlRequestHeaders[] = $name . ": " . $value;
   }
@@ -186,7 +249,7 @@ function makeRequest($url) {
   $responseHeaders = substr($response, 0, $headerSize);
   $responseBody = substr($response, $headerSize);
 
-  return array("headers" => $responseHeaders, "body" => $responseBody, "responseInfo" => $responseInfo);
+  return ["headers" => $responseHeaders, "body" => $responseBody, "responseInfo" => $responseInfo];
 }
 
 //Converts relative URLs to absolute ones, given a base URL.
@@ -208,7 +271,7 @@ function rel2abs($rel, $base) {
     $auth .= "@";
   }
   $abs = "$auth$host$port$path/$rel"; //Dirty absolute URL
-  for ($n = 1; $n > 0; $abs = preg_replace(array("#(/\.?/)#", "#/(?!\.\.)[^/]+/\.\./#"), "/", $abs, -1, $n)) {} //Replace '//' or '/./' or '/foo/../' with '/'
+  for ($n = 1; $n > 0; $abs = preg_replace(["#(/\.?/)#", "#/(?!\.\.)[^/]+/\.\./#"], "/", $abs, -1, $n)) {} //Replace '//' or '/./' or '/foo/../' with '/'
   return $scheme . "://" . $abs; //Absolute URL is ready.
 }
 
@@ -302,37 +365,7 @@ if (empty($scheme)) {
     die('Error: Detected a "' . $scheme . '" URL. miniProxy exclusively supports http[s] URLs.');
 }
 
-//Validate the requested URL against the whitelist.
-$urlIsValid = count($whitelistPatterns) === 0;
-foreach ($whitelistPatterns as $pattern) {
-  if (preg_match($pattern, $url)) {
-    $urlIsValid = true;
-    break;
-  }
-}
-
-if ($disallowLocal) {
-  //First, generate a list of IP addresses that correspond to the requested URL.
-  $ips = [];
-  $host = parse_url($url, PHP_URL_HOST);
-  if (filter_var($host, FILTER_VALIDATE_IP)) {
-    //The supplied host is already a valid IP address.
-    $ips = [$host];
-  } else {
-    //The host is not a valid IP address; attempt to resolve it to one.
-    $dnsResult = dns_get_record($host, DNS_A + DNS_AAAA);
-    $ips = array_map(function($dnsRecord) { return $dnsRecord['type'] == 'A' ? $dnsRecord['ip'] : $dnsRecord['ipv6']; }, $dnsResult);
-  }
-  foreach ($ips as $ip) {
-    //If any of the IPs are in the private or reserved range, this URL is invalid.
-    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-      $urlIsValid = false;
-      break;
-    }
-  }
-}
-
-if (!$urlIsValid) {
+if (!isValidURL($url)) {
   die("Error: The requested URL was disallowed by the server administrator.");
 }
 
@@ -448,7 +481,7 @@ if (stripos($contentType, "text/html") !== false) {
     $element->setAttribute("srcset", proxifySrcset($element->getAttribute("srcset"), $url));
   }
   //Proxify any of these attributes appearing in any tag.
-  $proxifyAttributes = array("href", "src");
+  $proxifyAttributes = ["href", "src"];
   foreach($proxifyAttributes as $attrName) {
     foreach($xpath->query("//*[@" . $attrName . "]") as $element) { //For every element with the given attribute...
       $attrContent = $element->getAttribute($attrName);
